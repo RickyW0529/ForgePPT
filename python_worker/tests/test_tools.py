@@ -116,3 +116,23 @@ def test_svg_generator_invocation():
         result = tool.invoke({"description": "circle", "style_hint": None})
         assert "<svg>" in result["svg_xml"]
         assert result["description"] == "circle"
+
+
+def test_ppt_screenshot_schema():
+    from llm.tools.ppt_screenshot import ppt_screenshot_tool, PPTScreenshotInput
+    inp = PPTScreenshotInput(slide_number=1, width_px=1280)
+    assert inp.slide_number == 1
+    assert inp.width_px == 1280
+
+
+def test_ppt_screenshot_role():
+    import importlib
+    from llm.tools import ppt_screenshot
+    from llm.tools.registry import ToolRegistry
+
+    importlib.reload(ppt_screenshot)  # Re-register after fixture clear
+
+    registry = ToolRegistry()
+    tools = registry.get_tools_for_role("editor")
+    names = [t.name for t in tools]
+    assert "ppt_screenshot" in names

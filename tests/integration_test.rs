@@ -25,3 +25,23 @@ async fn test_health_response_body() {
     assert_eq!(json["status"], "ok");
     assert_eq!(json["service"], "forge-ppt-gateway");
 }
+
+#[tokio::test]
+async fn test_cors_headers() {
+    let app = forge_ppt::create_app().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/health")
+                .method("OPTIONS")
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "GET")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(response.status() == StatusCode::NO_CONTENT || response.status() == StatusCode::OK);
+    let cors_header = response.headers().get("access-control-allow-origin");
+    assert!(cors_header.is_some());
+}

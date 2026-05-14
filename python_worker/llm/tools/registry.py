@@ -1,4 +1,5 @@
 import inspect
+import typing
 from typing import Any, Callable
 from pydantic import BaseModel
 from llm.tools.base import ToolDefinition
@@ -45,6 +46,9 @@ class ToolRegistry:
     def get_tools_for_role(self, role: str) -> list[ToolDefinition]:
         return [t for t in self._tools.values() if role in t.roles]
 
+    def clear(self) -> None:
+        self._tools.clear()
+
 
 def llm_tool(
     name: str,
@@ -61,7 +65,8 @@ def llm_tool(
         params = list(sig.parameters.values())
         if len(params) != 1:
             raise TypeError(f"Tool '{name}' must accept exactly one argument (input model)")
-        input_model = params[0].annotation
+        type_hints = typing.get_type_hints(func)
+        input_model = type_hints.get(params[0].name)
         if not issubclass(input_model, BaseModel):
             raise TypeError(f"Tool '{name}' argument must be a Pydantic model")
 

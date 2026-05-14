@@ -101,29 +101,17 @@ def test_svg_generator_schema():
 
 
 def test_svg_generator_invocation():
+    # Importing registers the tool via @llm_tool decorator
     from unittest.mock import patch
-    from llm.tools.svg_generator import _generate_svg_with_llm, svg_generator_tool, SVGGeneratorInput
+    import importlib
+    from llm.tools import svg_generator
     from llm.tools.registry import ToolRegistry
 
-    registry = ToolRegistry()
-    try:
-        registry.register(
-            name="svg_generator",
-            description=(
-                "Generate a vector SVG graphic from a text description. "
-                "Returns valid SVG XML that can be embedded in a slide."
-            ),
-            roles=["editor"],
-            input_model=SVGGeneratorInput,
-            func=svg_generator_tool,
-        )
-    except ValueError:
-        pass  # Already registered if this test imported the module first
+    importlib.reload(svg_generator)  # Re-register after fixture clear
 
-    with patch(
-        "llm.tools.svg_generator._generate_svg_with_llm",
-        return_value={"svg_xml": '<svg><circle r="10"/></svg>', "description": "circle"},
-    ):
+    with patch("llm.tools.svg_generator._generate_svg_with_llm") as mock_gen:
+        mock_gen.return_value = {"svg_xml": '<svg><circle r="10"/></svg>', "description": "circle"}
+        registry = ToolRegistry()
         tool = registry.get_tool("svg_generator")
         result = tool.invoke({"description": "circle", "style_hint": None})
         assert "<svg>" in result["svg_xml"]

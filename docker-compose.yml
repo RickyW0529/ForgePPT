@@ -12,5 +12,80 @@ services:
       timeout: 3s
       retries: 5
 
+  python-worker:
+    build:
+      context: .
+      dockerfile: python_worker/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PPT_LLM_PROVIDER=${PPT_LLM_PROVIDER:-openai}
+      - PPT_LLM_MODEL=${PPT_LLM_MODEL:-gpt-4o-mini}
+      - PPT_LLM_TEMPERATURE=${PPT_LLM_TEMPERATURE:-0.3}
+      - PPT_LLM_BASE_URL=${PPT_LLM_BASE_URL}
+      - PPT_OPENAI_API_KEY=${PPT_OPENAI_API_KEY}
+      - PPT_ANTHROPIC_API_KEY=${PPT_ANTHROPIC_API_KEY}
+      - PPT_DEEPSEEK_API_KEY=${PPT_DEEPSEEK_API_KEY}
+      - PPT_ZHIPU_API_KEY=${PPT_ZHIPU_API_KEY}
+      - PPT_EMBEDDING_PROVIDER=${PPT_EMBEDDING_PROVIDER:-openai}
+      - PPT_EMBEDDING_MODEL=${PPT_EMBEDDING_MODEL:-text-embedding-3-small}
+      - PPT_EMBEDDING_DIMENSIONS=${PPT_EMBEDDING_DIMENSIONS:-768}
+      - PPT_EMBEDDING_BASE_URL=${PPT_EMBEDDING_BASE_URL}
+      - QDRANT_URL=http://qdrant:6333
+      - EMBEDDING_DIMENSIONS=${PPT_EMBEDDING_DIMENSIONS:-768}
+    volumes:
+      - ./python_worker:/app
+      - pptx_uploads:/tmp/uploads
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - BIND_ADDR=0.0.0.0:3000
+      - PYTHON_WORKER_URL=http://python-worker:8000
+      - QDRANT_URL=http://qdrant:6333
+      - PPT_OPENAI_API_KEY=${PPT_OPENAI_API_KEY}
+      - PPT_ZHIPU_API_KEY=${PPT_ZHIPU_API_KEY}
+      - PPT_EMBEDDING_PROVIDER=${PPT_EMBEDDING_PROVIDER:-openai}
+      - PPT_EMBEDDING_MODEL=${PPT_EMBEDDING_MODEL:-text-embedding-3-small}
+      - PPT_EMBEDDING_DIMENSIONS=${PPT_EMBEDDING_DIMENSIONS:-768}
+      - PPT_EMBEDDING_BASE_URL=${PPT_EMBEDDING_BASE_URL}
+      - MAX_UPLOAD_SIZE=${MAX_UPLOAD_SIZE:-52428800}
+      - RATE_LIMIT_PER_MINUTE=${RATE_LIMIT_PER_MINUTE:-60}
+    depends_on:
+      python-worker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:3000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - gateway
+
 volumes:
   qdrant_storage:
+  pptx_uploads:

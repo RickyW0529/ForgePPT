@@ -11,6 +11,7 @@ from qdrant_client.models import (
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION_NAME = "user_preferences"
+EMBEDDING_DIMENSIONS = int(os.getenv("EMBEDDING_DIMENSIONS", "768"))
 
 
 def init_collection():
@@ -23,7 +24,7 @@ def init_collection():
     client.create_collection(
         collection_name=COLLECTION_NAME,
         vectors_config=VectorParams(
-            size=768,
+            size=EMBEDDING_DIMENSIONS,
             distance=Distance.COSINE,
             on_disk=True,
         ),

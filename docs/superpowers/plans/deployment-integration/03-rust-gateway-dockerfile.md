@@ -1,0 +1,57 @@
+# 03 - Rust Gateway Dockerfile
+
+**Files:**
+- Modify: `Dockerfile`
+
+---
+
+- [ ] **Step 1: Write multi-stage Dockerfile**
+
+```dockerfile
+# Dockerfile
+# Build stage
+FROM rust:1.80 AS builder
+
+WORKDIR /app
+
+# Cache dependencies
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN cargo build --release && rm -rf src
+
+# Build application
+COPY src ./src
+COPY tests ./tests
+RUN touch src/main.rs && cargo build --release
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /app/target/release/forge-ppt /app/forge-ppt
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3000/health || exit 1
+
+CMD ["./forge-ppt"]
+```
+
+- [ ] **Step 2: Test build**
+
+Run: `docker compose build gateway`
+Expected: Build succeeds.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add Dockerfile
+git commit -m "feat: add Rust gateway multi-stage Dockerfile"
+```

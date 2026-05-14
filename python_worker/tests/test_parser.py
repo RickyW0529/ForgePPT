@@ -43,3 +43,32 @@ def test_parse_invalid_file():
             parse_pptx(str(invalid_path))
     finally:
         invalid_path.unlink(missing_ok=True)
+
+
+def test_round_trip():
+    """Parse -> recompose -> parse should preserve text content and geometry."""
+    from services.recomposer import recompose_pptx
+
+    fixture_path = FIXTURES_DIR / "sample.pptx"
+    if not fixture_path.exists():
+        pytest.skip("sample.pptx fixture not found")
+
+    state_v1 = parse_pptx(str(fixture_path))
+    output_path = FIXTURES_DIR / "round_trip.pptx"
+    try:
+        recompose_pptx(str(fixture_path), state_v1, str(output_path))
+        state_v2 = parse_pptx(str(output_path))
+
+        assert state_v2.slide_count == state_v1.slide_count
+        for s1, s2 in zip(state_v1.slides, state_v2.slides):
+            assert len(s1.elements) == len(s2.elements)
+            for e1, e2 in zip(s1.elements, s2.elements):
+                assert e1.element_type == e2.element_type
+                assert e1.position.x_emu == e2.position.x_emu
+                assert e1.position.y_emu == e2.position.y_emu
+                assert e1.size.width_emu == e2.size.width_emu
+                assert e1.size.height_emu == e2.size.height_emu
+                if e1.element_type == "textbox":
+                    assert e1.content == e2.content
+    finally:
+        output_path.unlink(missing_ok=True)

@@ -91,3 +91,40 @@ def test_invocation_validation_error():
     tool = registry.get_tool("mock_search")
     with pytest.raises(ValidationError):
         tool.invoke({"bad_key": 123})
+
+
+def test_svg_generator_schema():
+    from llm.tools.svg_generator import SVGGeneratorInput
+    inp = SVGGeneratorInput(description="A blue circle", style_hint="minimal")
+    assert inp.description == "A blue circle"
+    assert inp.style_hint == "minimal"
+
+
+def test_svg_generator_invocation():
+    from unittest.mock import patch
+    from llm.tools.svg_generator import _generate_svg_with_llm, svg_generator_tool, SVGGeneratorInput
+    from llm.tools.registry import ToolRegistry
+
+    registry = ToolRegistry()
+    try:
+        registry.register(
+            name="svg_generator",
+            description=(
+                "Generate a vector SVG graphic from a text description. "
+                "Returns valid SVG XML that can be embedded in a slide."
+            ),
+            roles=["editor"],
+            input_model=SVGGeneratorInput,
+            func=svg_generator_tool,
+        )
+    except ValueError:
+        pass  # Already registered if this test imported the module first
+
+    with patch(
+        "llm.tools.svg_generator._generate_svg_with_llm",
+        return_value={"svg_xml": '<svg><circle r="10"/></svg>', "description": "circle"},
+    ):
+        tool = registry.get_tool("svg_generator")
+        result = tool.invoke({"description": "circle", "style_hint": None})
+        assert "<svg>" in result["svg_xml"]
+        assert result["description"] == "circle"

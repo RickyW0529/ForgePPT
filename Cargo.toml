@@ -1,0 +1,19 @@
+[package]
+name = "forge-ppt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.5", features = ["limit", "buffer"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "limit"] }
+reqwest = { version = "0.12", features = ["json"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.10", features = ["v4"] }
+
+[dev-dependencies]
+hyper = { version = "1.0", features = ["full"] }

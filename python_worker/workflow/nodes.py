@@ -1,10 +1,17 @@
 import xml.etree.ElementTree as ET
 from hashlib import sha256
 
+import tempfile
+from pathlib import Path
+
 from models.ppt_state import PPTState
-from models.workflow import EditRequest, EditResult, GraphState, RefinerOutput, SVGOutput
+from models.workflow import EditRequest, EditResult, GraphState, RefinerOutput, SVGOutput, ThemeOutput
 from llm.client import get_llm_client
-from llm.prompts import build_refiner_messages, build_svg_messages
+from llm.prompts import build_refiner_messages, build_svg_messages, build_theme_messages
+from llm.tools.registry import ToolRegistry
+from services.recomposer import recompose_pptx
+
+from langchain_core.tools import StructuredTool
 
 
 def upload_parser_node(state: GraphState) -> dict:
@@ -16,7 +23,7 @@ def upload_parser_node(state: GraphState) -> dict:
     return {}
 
 
-def text_refiner_node(state: GraphState, request: EditRequest) -> dict:
+def text_refiner_node(state: GraphState, request: EditRequest, tools=None) -> dict:
     """Text refinement sub-node: rewrites a single text box."""
     ppt_state: PPTState = state["ppt_state"]
     text_box = None
@@ -41,6 +48,8 @@ def text_refiner_node(state: GraphState, request: EditRequest) -> dict:
 
     llm = get_llm_client()
     messages = build_refiner_messages(text_box.content, request.prompt)
+    if tools:
+        llm = llm.bind_tools(tools)
     structured_llm = llm.with_structured_output(RefinerOutput, method="function_calling")
     response: RefinerOutput = structured_llm.invoke(messages)
 
@@ -55,10 +64,12 @@ def text_refiner_node(state: GraphState, request: EditRequest) -> dict:
     }
 
 
-def svg_placeholder_node(state: GraphState, request: EditRequest) -> dict:
+def svg_placeholder_node(state: GraphState, request: EditRequest, tools=None) -> dict:
     """SVG placeholder sub-node: generates SVG for an image placeholder."""
     llm = get_llm_client()
     messages = build_svg_messages(request.prompt, request.style_hint)
+    if tools:
+        llm = llm.bind_tools(tools)
     structured_llm = llm.with_structured_output(SVGOutput, method="json_schema")
     response: SVGOutput = structured_llm.invoke(messages)
 
@@ -90,6 +101,49 @@ def svg_placeholder_node(state: GraphState, request: EditRequest) -> dict:
     }
 
 
+def theme_refiner_node(state: GraphState, request: EditRequest, tools=None) -> dict:
+    """Theme refinement sub-node: applies global color/style changes."""
+    ppt_state: PPTState = state["ppt_state"]
+
+    text_samples = []
+    for slide in ppt_state.slides:
+        for elem in slide.elements:
+            if elem.element_type == "textbox":
+                text_samples.append(elem.content)
+
+    llm = get_llm_client()
+    messages = build_theme_messages(text_samples, request.prompt)
+    if tools:
+        llm = llm.bind_tools(tools)
+    structured_llm = llm.with_structured_output(ThemeOutput, method="function_calling")
+    response: ThemeOutput = structured_llm.invoke(messages)
+
+    # Apply theme to all text boxes
+    tb_index = 0
+    for slide in ppt_state.slides:
+        for elem in slide.elements:
+            if elem.element_type == "textbox":
+                color = response.color_palette[tb_index % len(response.color_palette)]
+                elem.style.font_color = color
+                if elem.style.font_size_pt:
+                    elem.style.font_size_pt = round(
+                        elem.style.font_size_pt * response.font_size_multiplier, 1
+                    )
+                if response.make_bold is not None:
+                    elem.style.bold = response.make_bold
+                tb_index += 1
+
+    return {
+        "edit_results": [
+            EditResult(
+                request_id=request.id,
+                status="completed",
+                new_content=response.change_summary,
+            )
+        ]
+    }
+
+
 def editor_node(state: GraphState) -> dict:
     """Editor node: routes edit requests to appropriate sub-nodes."""
     if state.get("error"):
@@ -100,12 +154,27 @@ def editor_node(state: GraphState) -> dict:
         for r in state.get("edit_requests", [])
     ]
 
+    registry = ToolRegistry()
+    available_tools = registry.get_tools_for_role("editor")
+    lc_tools = []
+    for t in available_tools:
+        lc_tools.append(
+            StructuredTool.from_function(
+                name=t.name,
+                description=t.description,
+                func=t.invoke,
+                args_schema=t.input_model,
+            )
+        )
+
     all_results = []
     for request in edit_requests:
         if request.type == "refine":
-            result = text_refiner_node(state, request)
+            result = text_refiner_node(state, request, tools=lc_tools)
         elif request.type == "placeholder":
-            result = svg_placeholder_node(state, request)
+            result = svg_placeholder_node(state, request, tools=lc_tools)
+        elif request.type == "theme":
+            result = theme_refiner_node(state, request, tools=lc_tools)
         else:
             result = {
                 "edit_results": [
@@ -122,5 +191,18 @@ def editor_node(state: GraphState) -> dict:
 
 
 def exporter_node(state: GraphState) -> dict:
-    """Exporter node: finalizes output path."""
-    return {"export_path": "/tmp/output.pptx"}
+    """Exporter node: recompose PPTX from modified PPTState."""
+    ppt_state: PPTState = state.get("ppt_state")
+    if not ppt_state:
+        return {"error": "No PPTState available for export"}
+
+    source_file = ppt_state.source_file
+    if not source_file or not Path(source_file).exists():
+        return {"error": f"Source file not found: {source_file}"}
+
+    output_path = f"/tmp/forgeppt_output_{ppt_state.source_file.replace('/', '_')}"
+    try:
+        recompose_pptx(source_file, ppt_state, output_path)
+        return {"export_path": output_path}
+    except Exception as e:
+        return {"error": f"Export failed: {e}"}

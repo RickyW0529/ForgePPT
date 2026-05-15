@@ -1,8 +1,10 @@
-import xml.etree.ElementTree as ET
-from hashlib import sha256
-
-import tempfile
+import copy
 from pathlib import Path
+
+try:
+    from defusedxml import ElementTree as DefusedET
+except ImportError:
+    import xml.etree.ElementTree as DefusedET
 
 from models.ppt_state import PPTState
 from models.workflow import EditRequest, EditResult, GraphState, RefinerOutput, SVGOutput, ThemeOutput
@@ -11,7 +13,7 @@ from llm.prompts import build_refiner_messages, build_svg_messages, build_theme_
 from llm.tools.registry import ToolRegistry
 from services.recomposer import recompose_pptx
 
-from langchain_core.tools import StructuredTool
+from langchain_core.tools import BaseTool, StructuredTool
 
 
 def upload_parser_node(state: GraphState) -> dict:
@@ -23,7 +25,7 @@ def upload_parser_node(state: GraphState) -> dict:
     return {}
 
 
-def text_refiner_node(state: GraphState, request: EditRequest, tools=None) -> dict:
+def text_refiner_node(state: GraphState, request: EditRequest, llm, tools: list[BaseTool] | None = None) -> dict:
     """Text refinement sub-node: rewrites a single text box."""
     ppt_state: PPTState = state["ppt_state"]
     text_box = None
@@ -46,7 +48,6 @@ def text_refiner_node(state: GraphState, request: EditRequest, tools=None) -> di
             ]
         }
 
-    llm = get_llm_client()
     messages = build_refiner_messages(text_box.content, request.prompt)
     if tools:
         llm = llm.bind_tools(tools)
@@ -64,9 +65,8 @@ def text_refiner_node(state: GraphState, request: EditRequest, tools=None) -> di
     }
 
 
-def svg_placeholder_node(state: GraphState, request: EditRequest, tools=None) -> dict:
+def svg_placeholder_node(state: GraphState, request: EditRequest, llm, tools: list[BaseTool] | None = None) -> dict:
     """SVG placeholder sub-node: generates SVG for an image placeholder."""
-    llm = get_llm_client()
     messages = build_svg_messages(request.prompt, request.style_hint)
     if tools:
         llm = llm.bind_tools(tools)
@@ -76,10 +76,10 @@ def svg_placeholder_node(state: GraphState, request: EditRequest, tools=None) ->
     svg_clean = response.svg_xml.replace("```xml", "").replace("```", "").strip()
     # Basic SVG validation
     try:
-        root = ET.fromstring(svg_clean)
+        root = DefusedET.fromstring(svg_clean)
         if root.tag.lower() != "svg":
             raise ValueError("Root element is not <svg>")
-    except ET.ParseError as e:
+    except Exception as e:
         return {
             "edit_results": [
                 EditResult(
@@ -101,9 +101,9 @@ def svg_placeholder_node(state: GraphState, request: EditRequest, tools=None) ->
     }
 
 
-def theme_refiner_node(state: GraphState, request: EditRequest, tools=None) -> dict:
+def theme_refiner_node(state: GraphState, request: EditRequest, llm, tools: list[BaseTool] | None = None) -> dict:
     """Theme refinement sub-node: applies global color/style changes."""
-    ppt_state: PPTState = state["ppt_state"]
+    ppt_state: PPTState = copy.deepcopy(state["ppt_state"])
 
     text_samples = []
     for slide in ppt_state.slides:
@@ -111,7 +111,6 @@ def theme_refiner_node(state: GraphState, request: EditRequest, tools=None) -> d
             if elem.element_type == "textbox":
                 text_samples.append(elem.content)
 
-    llm = get_llm_client()
     messages = build_theme_messages(text_samples, request.prompt)
     if tools:
         llm = llm.bind_tools(tools)
@@ -134,13 +133,14 @@ def theme_refiner_node(state: GraphState, request: EditRequest, tools=None) -> d
                 tb_index += 1
 
     return {
+        "ppt_state": ppt_state,
         "edit_results": [
             EditResult(
                 request_id=request.id,
                 status="completed",
                 new_content=response.change_summary,
             )
-        ]
+        ],
     }
 
 
@@ -149,11 +149,7 @@ def editor_node(state: GraphState) -> dict:
     if state.get("error"):
         return {}
 
-    edit_requests: list[EditRequest] = [
-        EditRequest.model_validate(r) if isinstance(r, dict) else r
-        for r in state.get("edit_requests", [])
-    ]
-
+    llm = get_llm_client()
     registry = ToolRegistry()
     available_tools = registry.get_tools_for_role("editor")
     lc_tools = []
@@ -168,26 +164,34 @@ def editor_node(state: GraphState) -> dict:
         )
 
     all_results = []
-    for request in edit_requests:
-        if request.type == "refine":
-            result = text_refiner_node(state, request, tools=lc_tools)
-        elif request.type == "placeholder":
-            result = svg_placeholder_node(state, request, tools=lc_tools)
-        elif request.type == "theme":
-            result = theme_refiner_node(state, request, tools=lc_tools)
-        else:
-            result = {
-                "edit_results": [
-                    EditResult(
-                        request_id=request.id,
-                        status="failed",
-                        error=f"Unknown request type: {request.type}",
-                    )
-                ]
-            }
-        all_results.extend(result.get("edit_results", []))
+    updated_ppt_state = None
+    for req_data in state.get("edit_requests", []):
+        try:
+            request = EditRequest.model_validate(req_data) if isinstance(req_data, dict) else req_data
+            if request.type == "refine":
+                result = text_refiner_node(state, request, llm, tools=lc_tools)
+            elif request.type == "placeholder":
+                result = svg_placeholder_node(state, request, llm, tools=lc_tools)
+            elif request.type == "theme":
+                result = theme_refiner_node(state, request, llm, tools=lc_tools)
+                updated_ppt_state = result.get("ppt_state", updated_ppt_state)
+            else:
+                raise ValueError(f"Unknown edit type: {request.type}")
+            all_results.extend(result.get("edit_results", []))
+        except Exception as e:
+            request_id = req_data.get("id") if isinstance(req_data, dict) else getattr(req_data, "id", None)
+            all_results.append(
+                EditResult(
+                    request_id=request_id or "unknown",
+                    status="failed",
+                    error=str(e),
+                )
+            )
 
-    return {"edit_results": all_results}
+    result_dict = {"edit_results": all_results}
+    if updated_ppt_state is not None:
+        result_dict["ppt_state"] = updated_ppt_state
+    return result_dict
 
 
 def exporter_node(state: GraphState) -> dict:

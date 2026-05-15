@@ -1,16 +1,21 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 from models.ppt_state import PPTState, Slide, SlideSize, TextBox, Position, Size, TextStyle
 from models.workflow import EditRequest, EditResult, GraphState, RefinerOutput, ThemeOutput
+from llm.tools.registry import ToolRegistry, llm_tool
 from workflow.nodes import text_refiner_node, editor_node
+
+
+@pytest.fixture(autouse=True)
+def reset_registry():
+    ToolRegistry().clear()
+    yield
 
 
 def test_text_refiner_node_returns_edit_result():
     """text_refiner_node should return an EditResult with new content."""
-    # Build a minimal state
-    from models.ppt_state import PPTState, Slide, SlideSize, TextBox, Position, Size, TextStyle
-
     ppt_state = PPTState(
         source_file="test.pptx",
         slide_count=1,
@@ -39,14 +44,12 @@ def test_text_refiner_node_returns_edit_result():
     }
     request = EditRequest(type="refine", text_id=ppt_state.slides[0].elements[0].text_id, prompt="Make it shorter")
 
-    # Mock the LLM structured output
     mock_llm = MagicMock()
     mock_structured = MagicMock()
     mock_structured.invoke.return_value = RefinerOutput(refined_text="Short", change_summary="Cut words")
     mock_llm.with_structured_output.return_value = mock_structured
 
-    with patch("workflow.nodes.get_llm_client", return_value=mock_llm):
-        result = text_refiner_node(state, request)
+    result = text_refiner_node(state, request, mock_llm)
 
     assert "edit_results" in result
     assert len(result["edit_results"]) == 1
@@ -79,6 +82,13 @@ def test_editor_node_binds_tools_when_requests_present():
         edit_requests=[{"type": "theme", "prompt": "blue style"}],
     )
 
+    class MockToolInput(BaseModel):
+        query: str
+
+    @llm_tool(name="mock_editor_tool", roles=["editor"], description="Mock editor tool")
+    def mock_editor_tool(params: MockToolInput) -> str:
+        return f"result for {params.query}"
+
     with patch("workflow.nodes.get_llm_client") as mock_get_llm:
         mock_llm = MagicMock()
         mock_structured = MagicMock()
@@ -98,3 +108,14 @@ def test_editor_node_binds_tools_when_requests_present():
     assert result["edit_results"][0].new_content == "ok"
     # Verify bind_tools was called because tools are built from the registry
     mock_llm.bind_tools.assert_called_once()
+
+
+def test_editor_node_handles_unknown_request_type():
+    state = GraphState.create(
+        ppt_state={"slides": [], "slide_count": 0, "global_props": {}, "source_file": "/tmp/test.pptx"},
+        edit_requests=[{"type": "unknown", "prompt": "do something"}],
+    )
+    with patch("workflow.nodes.get_llm_client") as mock_get_llm:
+        mock_get_llm.return_value = MagicMock()
+        result = editor_node(state)
+    assert result["edit_results"][0].status == "failed"

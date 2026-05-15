@@ -122,9 +122,3 @@ def get_llm_client() -> BaseChatModel:
     raise ValueError(f"Unsupported LLM provider: {provider}")
 
 
-from langchain_core.tools import BaseTool
-
-
-def bind_tools_to_llm(llm, tools: list[BaseTool]):
-    """Bind a list of LangChain-compatible tools to an LLM client."""
-    return llm.bind_tools(tools)

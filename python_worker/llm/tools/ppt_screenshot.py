@@ -1,4 +1,5 @@
 import base64
+import logging
 import shutil
 import subprocess
 import tempfile
@@ -7,8 +8,11 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from llm.tools.registry import llm_tool
 
+logger = logging.getLogger(__name__)
+
 
 class PPTScreenshotInput(BaseModel):
+    pptx_path: str = Field(..., description="Path to the .pptx file")
     slide_number: int = Field(..., ge=1, description="1-based slide number to capture")
     width_px: int = Field(1280, ge=640, le=3840, description="Output image width in pixels")
 
@@ -33,10 +37,12 @@ def _convert_slide_to_png(pptx_path: str, slide_number: int, width_px: int) -> s
     if dependencies are missing.
     """
     if not _libreoffice_available():
+        logger.warning("LibreOffice not available; returning placeholder image")
         return _placeholder_image(slide_number)
 
     path = Path(pptx_path)
     if not path.exists():
+        logger.warning("PPTX file not found: %s", pptx_path)
         raise FileNotFoundError(f"PPTX not found: {pptx_path}")
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -50,11 +56,16 @@ def _convert_slide_to_png(pptx_path: str, slide_number: int, width_px: int) -> s
         ]
         try:
             subprocess.run(cmd, check=True, capture_output=True, timeout=60)
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
+        except subprocess.CalledProcessError as e:
+            logger.warning("LibreOffice conversion failed: %s", e)
+            return _placeholder_image(slide_number)
+        except subprocess.TimeoutExpired as e:
+            logger.warning("LibreOffice conversion timed out: %s", e)
             return _placeholder_image(slide_number)
 
         pdf_file = tmp_path / f"{path.stem}.pdf"
         if not pdf_file.exists():
+            logger.warning("PDF output not found after LibreOffice conversion")
             return _placeholder_image(slide_number)
 
         try:
@@ -68,6 +79,7 @@ def _convert_slide_to_png(pptx_path: str, slide_number: int, width_px: int) -> s
             b64 = base64.b64encode(png_path.read_bytes()).decode()
             return f"data:image/png;base64,{b64}"
         except ImportError:
+            logger.warning("pdf2image not installed; returning placeholder image")
             return _placeholder_image(slide_number)
 
 
@@ -89,17 +101,24 @@ def _placeholder_image(slide_number: int) -> str:
     ),
 )
 def ppt_screenshot_tool(params: PPTScreenshotInput) -> dict:
-    """Render a PPT slide to an image.
-
-    Requires the pptx source path to be available in the workflow context.
-    In practice the caller must inject `pptx_path` before invoking.
-    """
-    return {
-        "slide_number": params.slide_number,
-        "width_px": params.width_px,
-        "image_data": None,
-        "note": "Use the node-level wrapper that injects pptx_path.",
-    }
+    try:
+        image_data = render_slide(params.pptx_path, params.slide_number, params.width_px)
+        is_placeholder = image_data == _placeholder_image(0)
+        return {
+            "slide_number": params.slide_number,
+            "width_px": params.width_px,
+            "image_data": image_data,
+            "is_placeholder": is_placeholder,
+        }
+    except Exception as e:
+        logger.warning("ppt_screenshot_tool failed for %s slide %s: %s", params.pptx_path, params.slide_number, e)
+        return {
+            "slide_number": params.slide_number,
+            "width_px": params.width_px,
+            "image_data": _placeholder_image(0),
+            "is_placeholder": True,
+            "error": str(e),
+        }
 
 
 def render_slide(pptx_path: str, slide_number: int, width_px: int = 1280) -> str:

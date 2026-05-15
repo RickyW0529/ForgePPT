@@ -120,7 +120,7 @@ def test_svg_generator_invocation():
 
 def test_ppt_screenshot_schema():
     from llm.tools.ppt_screenshot import ppt_screenshot_tool, PPTScreenshotInput
-    inp = PPTScreenshotInput(slide_number=1, width_px=1280)
+    inp = PPTScreenshotInput(pptx_path="/tmp/test.pptx", slide_number=1, width_px=1280)
     assert inp.slide_number == 1
     assert inp.width_px == 1280
 
@@ -136,3 +136,45 @@ def test_ppt_screenshot_role():
     tools = registry.get_tools_for_role("editor")
     names = [t.name for t in tools]
     assert "ppt_screenshot" in names
+
+
+from unittest.mock import patch, MagicMock
+from llm.tools.ppt_screenshot import render_slide, _placeholder_image
+
+
+def test_render_slide_libreoffice_missing():
+    with patch("llm.tools.ppt_screenshot._libreoffice_available", return_value=False):
+        result = render_slide("/tmp/test.pptx", 1)
+        assert result.startswith("data:image/png;base64,")
+
+
+def test_render_slide_file_not_found():
+    with patch("llm.tools.ppt_screenshot._libreoffice_available", return_value=True):
+        with pytest.raises(FileNotFoundError):
+            render_slide("/nonexistent/file.pptx", 1)
+
+
+def test_ppt_screenshot_tool_invokes_render_slide():
+    from llm.tools.ppt_screenshot import ppt_screenshot_tool, PPTScreenshotInput
+    with patch("llm.tools.ppt_screenshot.render_slide") as mock_render:
+        mock_render.return_value = "data:image/png;base64,abc123"
+        inp = PPTScreenshotInput(pptx_path="/tmp/test.pptx", slide_number=1, width_px=1280)
+        result = ppt_screenshot_tool(inp)
+        assert result["slide_number"] == 1
+        assert result["width_px"] == 1280
+        assert result["image_data"] == "data:image/png;base64,abc123"
+        assert result["is_placeholder"] is False
+
+
+def test_ppt_screenshot_tool_fallback_on_error():
+    from llm.tools.ppt_screenshot import ppt_screenshot_tool, PPTScreenshotInput
+    with patch("llm.tools.ppt_screenshot.render_slide", side_effect=Exception("boom")):
+        inp = PPTScreenshotInput(pptx_path="/tmp/test.pptx", slide_number=1, width_px=1280)
+        result = ppt_screenshot_tool(inp)
+        assert result["is_placeholder"] is True
+        assert "error" in result
+
+
+def test_placeholder_image():
+    result = _placeholder_image(0)
+    assert result.startswith("data:image/png;base64,")

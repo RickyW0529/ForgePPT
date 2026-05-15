@@ -11,6 +11,8 @@ from models.workflow import EditRequest, EditResult, GraphState, RefinerOutput, 
 from llm.client import get_llm_client
 from llm.prompts import build_refiner_messages, build_svg_messages, build_theme_messages
 from llm.tools.registry import ToolRegistry
+from llm.tools.svg_generator import svg_generator_tool
+from llm.tools.ppt_screenshot import ppt_screenshot_tool
 from services.recomposer import recompose_pptx
 
 from langchain_core.tools import BaseTool, StructuredTool

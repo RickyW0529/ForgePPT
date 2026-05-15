@@ -83,7 +83,7 @@ def _convert_slide_to_png(pptx_path: str, slide_number: int, width_px: int) -> s
             return _placeholder_image(slide_number)
 
 
-def _placeholder_image(slide_number: int) -> str:
+def _placeholder_image(_slide_number: int) -> str:
     """Return a transparent 1x1 PNG as a fallback when rendering is unavailable."""
     minimal_png = (
         b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\xfc\xcf\xc0\x50\x0f\x00\x04A\x01\xa1\x3a\xf0\xfc\xcc\x00\x00\x00\x00IEND\xaeB`\x82"
@@ -103,7 +103,7 @@ def _placeholder_image(slide_number: int) -> str:
 def ppt_screenshot_tool(params: PPTScreenshotInput) -> dict:
     try:
         image_data = render_slide(params.pptx_path, params.slide_number, params.width_px)
-        is_placeholder = image_data == _placeholder_image(0)
+        is_placeholder = image_data == _placeholder_image(params.slide_number)
         return {
             "slide_number": params.slide_number,
             "width_px": params.width_px,
@@ -115,7 +115,7 @@ def ppt_screenshot_tool(params: PPTScreenshotInput) -> dict:
         return {
             "slide_number": params.slide_number,
             "width_px": params.width_px,
-            "image_data": _placeholder_image(0),
+            "image_data": _placeholder_image(params.slide_number),
             "is_placeholder": True,
             "error": str(e),
         }

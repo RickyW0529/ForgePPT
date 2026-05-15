@@ -5,8 +5,8 @@ use crate::config::GatewayConfig;
 
 #[derive(Clone)]
 pub struct PythonWorkerClient {
-    client: Client,
-    base_url: String,
+    pub client: Client,
+    pub base_url: String,
 }
 
 impl PythonWorkerClient {

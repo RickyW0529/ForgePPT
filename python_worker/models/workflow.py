@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 class EditRequest(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
-    type: Literal["refine", "placeholder"]
+    type: Literal["refine", "placeholder", "theme"]
     text_id: Optional[str] = None
     prompt: str = Field(..., min_length=1)
     style_hint: Optional[str] = None
@@ -33,6 +33,19 @@ class SVGOutput(BaseModel):
         description="Complete SVG XML string, without markdown code block markers",
     )
     description: str = Field(..., description="Brief description of generated image")
+
+
+class ThemeOutput(BaseModel):
+    color_palette: list[str] = Field(
+        ...,
+        description="List of text colors in #RRGGBB format to apply cyclically",
+    )
+    font_size_multiplier: float = Field(
+        1.0,
+        description="Multiplier for all font sizes, e.g. 1.1 for 10% larger",
+    )
+    make_bold: bool = Field(False, description="Whether to make all text bold")
+    change_summary: str = Field(..., description="Summary of the style changes")
 
 
 class GraphState(dict):

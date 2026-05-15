@@ -58,3 +58,31 @@ Generate the SVG code:"""
         SystemMessage(content=system_content),
         HumanMessage(content=human_content),
     ]
+
+
+THEME_SYSTEM_TEMPLATE = """You are a professional PPT visual designer. Based on the user's description of the desired style, generate a global color palette and typography adjustments for a PPT presentation.
+
+Output requirements:
+- color_palette: a list of 2-5 hex color codes (#RRGGBB) that will be applied cyclically to text boxes
+- font_size_multiplier: a float like 0.9 or 1.2 to scale all font sizes
+- make_bold: true or false
+- change_summary: a brief description of the style changes in the same language as the user's request"""
+
+
+def build_theme_messages(
+    text_samples: list[str],
+    instruction: str,
+) -> list[SystemMessage | HumanMessage]:
+    """Build message list for global theme/style refinement."""
+    samples = "\n".join(f"- {t[:80]}" for t in text_samples[:10])
+    human_content = f"""Current PPT text content samples:
+{samples}
+
+User's style request:
+{instruction}
+
+Please generate the global theme configuration."""
+    return [
+        SystemMessage(content=THEME_SYSTEM_TEMPLATE),
+        HumanMessage(content=human_content),
+    ]

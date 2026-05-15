@@ -10,6 +10,7 @@ use crate::memory::client::QdrantClient;
 use crate::memory::embeddings::EmbeddingClient;
 use crate::sse::broadcast::EventBroadcaster;
 
+mod download;
 mod health;
 mod preferences;
 mod sse;
@@ -28,6 +29,7 @@ pub fn create_routes() -> Router {
         .route("/api/v1/events", get(sse::events_handler))
         .route("/api/v1/upload", post(upload::upload_handler))
         .route("/api/v1/tasks", post(tasks::create_task_handler))
+        .route("/api/v1/download", get(download::download_handler))
         .route("/api/v1/preferences", post(preferences::write_preference))
         .route("/api/v1/preferences/context", get(preferences::get_context))
         .layer(Extension(broadcaster))

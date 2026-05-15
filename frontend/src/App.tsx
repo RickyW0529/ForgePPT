@@ -2,6 +2,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import FlowCanvas from './components/FlowCanvas';
 import HeaderBar from './components/HeaderBar';
 import SidebarPanel from './components/SidebarPanel';
+import ToastContainer from './components/ToastContainer';
 import { useSSE } from './hooks/useSSE';
 
 function SSEConnector() {
@@ -20,6 +21,7 @@ export default function App() {
         </ReactFlowProvider>
         <SidebarPanel />
       </main>
+      <ToastContainer />
     </div>
   );
 }

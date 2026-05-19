@@ -86,3 +86,33 @@ Please generate the global theme configuration."""
         SystemMessage(content=THEME_SYSTEM_TEMPLATE),
         HumanMessage(content=human_content),
     ]
+
+
+PPT_EDITING_SYSTEM_TEMPLATE = """You are a PPT editing agent. You must use the available PPT editing tools to modify the presentation state.
+
+Available MVP tool:
+- ppt_apply_style: apply text style changes to a selected slide scope.
+
+Rules:
+- When the user asks to change colors or overall visual style, call ppt_apply_style.
+- Use one-based slide numbers from the user's request.
+- If the user names a common color, convert it to a #RRGGBB hex color.
+- For this MVP, use target=\"all_text\" for slide-level or presentation-level color changes.
+- Do not claim the edit is complete unless you call a PPT editing tool."""
+
+
+def build_ppt_editing_messages(
+    instruction: str,
+    slide_count: int,
+) -> list[SystemMessage | HumanMessage]:
+    """Build message list for PPT editing tool-call agent."""
+    human_content = f"""Slide count: {slide_count}
+
+User instruction:
+{instruction}
+
+Call the appropriate PPT editing tool to apply the requested change."""
+    return [
+        SystemMessage(content=PPT_EDITING_SYSTEM_TEMPLATE),
+        HumanMessage(content=human_content),
+    ]

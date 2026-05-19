@@ -1,6 +1,21 @@
 from llm.prompts import build_refiner_messages, build_svg_messages
 
 
+def test_build_ppt_editing_messages_includes_instruction_and_slide_count():
+    from llm.prompts import build_ppt_editing_messages
+
+    messages = build_ppt_editing_messages(
+        instruction="把第三页整体颜色改成蓝色",
+        slide_count=3,
+    )
+
+    assert len(messages) == 2
+    assert "PPT editing agent" in messages[0].content
+    assert "ppt_apply_style" in messages[0].content
+    assert "Slide count: 3" in messages[1].content
+    assert "把第三页整体颜色改成蓝色" in messages[1].content
+
+
 def test_refiner_messages_structure():
     """Refiner messages should be a list of System + Human messages."""
     messages = build_refiner_messages("Original text", "Make it shorter")

@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from api.routers import tasks, upload, download
+from api.routers import tasks, upload, download, workflows
 
 
 @asynccontextmanager
@@ -22,6 +22,7 @@ app = FastAPI(
 app.include_router(tasks.router, prefix="/api/v1")
 app.include_router(upload.router, prefix="/api/v1")
 app.include_router(download.router, prefix="/api/v1")
+app.include_router(workflows.router, prefix="/api/v1")
 
 
 @app.get("/health")

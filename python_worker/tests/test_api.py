@@ -1,9 +1,11 @@
+import asyncio
 from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
 from api.main import app
 from models.ppt_state import PPTState, Position, Size, Slide, SlideSize, TextBox
+from workflow.sse_broadcaster import _workflow_events
 
 client = TestClient(app)
 
@@ -51,3 +53,74 @@ def test_create_task():
     data = response.json()
     assert data["success"] is True
     assert "task_id" in data["data"]
+
+
+def test_create_workflow_invalid_dag():
+    """Missing upload node should return 400."""
+    resp = client.post("/api/v1/workflows", json={
+        "workflow_definition": {
+            "workflow_id": "bad",
+            "nodes": [{"id": "x", "type": "agent", "position": {"x": 0, "y": 0}, "data": {}}],
+            "edges": []
+        },
+        "file_path": "/tmp/test.pptx"
+    })
+    assert resp.status_code == 400
+    assert "upload" in resp.json()["detail"].lower()
+
+
+async def _slow_run(*args, **kwargs):
+    await asyncio.sleep(999)
+
+
+def test_create_workflow_accepted():
+    """Valid workflow should return 202 Accepted."""
+    with patch("api.routers.workflows._run_workflow", side_effect=_slow_run):
+        resp = client.post("/api/v1/workflows", json={
+            "workflow_definition": {
+                "workflow_id": "good",
+                "nodes": [
+                    {"id": "upload", "type": "upload", "position": {"x": 0, "y": 0}, "data": {}},
+                    {"id": "export", "type": "export", "position": {"x": 0, "y": 0}, "data": {}},
+                ],
+                "edges": [{"id": "e1", "source": "upload", "target": "export"}]
+            },
+            "file_path": "/tmp/test.pptx"
+        })
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["workflow_id"] == "good"
+    assert data["status"] == "running"
+
+
+def test_get_workflow_not_found():
+    resp = client.get("/api/v1/workflows/nonexistent")
+    assert resp.status_code == 404
+
+
+def test_workflow_events_stream():
+    """SSE endpoint should return text/event-stream."""
+    with patch("api.routers.workflows._run_workflow", side_effect=_slow_run):
+        resp = client.post("/api/v1/workflows", json={
+            "workflow_definition": {
+                "workflow_id": "events-test",
+                "nodes": [
+                    {"id": "upload", "type": "upload", "position": {"x": 0, "y": 0}, "data": {}},
+                    {"id": "export", "type": "export", "position": {"x": 0, "y": 0}, "data": {}},
+                ],
+                "edges": [{"id": "e1", "source": "upload", "target": "export"}]
+            },
+            "file_path": "/tmp/test.pptx"
+        })
+        assert resp.status_code == 202
+
+        # Seed the queue with an export-completed event so the SSE generator
+        # yields once and then breaks, allowing TestClient to finish reading.
+        queue = _workflow_events["events-test"]
+        queue.put_nowait({"node_id": "export", "status": "completed"})
+
+        resp = client.get("/api/v1/workflows/events-test/events", headers={"Accept": "text/event-stream"})
+        # For MVP the endpoint may immediately close if no active workflow;
+        # just verify it doesn't 404 and returns the right content type.
+        assert resp.status_code == 200
+        assert "text/event-stream" in resp.headers.get("content-type", "")

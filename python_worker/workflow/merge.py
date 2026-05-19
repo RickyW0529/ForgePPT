@@ -36,9 +36,13 @@ def merge_states(
         modified_pages = detect_modified_pages(inputs[0], branch_state)
         for page_num in modified_pages:
             if strategy == "error_on_conflict" and base_modified[page_num]:
-                raise ValueError(
-                    f"Merge conflict: page {page_num} modified by multiple branches"
-                )
+                existing_slide = base.slides[page_num - 1]
+                new_slide = branch_state.slides[page_num - 1]
+                if existing_slide.model_dump_json() != new_slide.model_dump_json():
+                    raise ValueError(
+                        f"Merge conflict: page {page_num} modified by multiple branches"
+                    )
+                continue
             base.slides[page_num - 1] = copy.deepcopy(branch_state.slides[page_num - 1])
             base_modified[page_num] = True
 

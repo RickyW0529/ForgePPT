@@ -67,3 +67,16 @@ def test_merge_no_conflict_error_strategy():
     assert merged.slides[0].elements[0].content == "page1 A"
     assert merged.slides[1].elements[0].content == "page2 B"
     assert merged.slides[2].elements[0].content == "page3"
+
+
+def test_merge_identical_changes_no_conflict():
+    import copy
+    base = _make_state(["page1", "page2"])
+    branch_a = copy.deepcopy(base)
+    branch_a.slides[0].elements[0].content = "same"
+    branch_b = copy.deepcopy(base)
+    branch_b.slides[0].elements[0].content = "same"
+
+    result = merge_states([base, branch_a, branch_b], strategy="error_on_conflict")
+    assert result.slides[0].elements[0].content == "same"
+    assert result.slides[1].elements[0].content == "page2"

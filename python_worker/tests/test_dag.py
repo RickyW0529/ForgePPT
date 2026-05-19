@@ -102,3 +102,48 @@ def test_validate_dag_disconnected_subgraph():
     )
     with pytest.raises(ValueError, match="Disconnected"):
         validate_dag(wf)
+
+
+def test_validate_dag_multiple_uploads():
+    wf = WorkflowDef(
+        workflow_id="t7",
+        nodes=[
+            WorkflowNode(id="a", type="upload", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="b", type="upload", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="c", type="export", position=CanvasPosition(x=0, y=0), data={}),
+        ],
+        edges=[WorkflowEdge(id="e1", source="a", target="c")],
+    )
+    with pytest.raises(ValueError, match="upload"):
+        validate_dag(wf)
+
+
+def test_validate_dag_unknown_edge_target():
+    wf = WorkflowDef(
+        workflow_id="t8",
+        nodes=[
+            WorkflowNode(id="a", type="upload", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="b", type="export", position=CanvasPosition(x=0, y=0), data={}),
+        ],
+        edges=[WorkflowEdge(id="e1", source="a", target="missing")],
+    )
+    with pytest.raises(ValueError, match="unknown"):
+        validate_dag(wf)
+
+
+def test_topological_sort_cycle():
+    wf = WorkflowDef(
+        workflow_id="t9",
+        nodes=[
+            WorkflowNode(id="a", type="upload", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="b", type="agent", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="c", type="export", position=CanvasPosition(x=0, y=0), data={}),
+        ],
+        edges=[
+            WorkflowEdge(id="e1", source="a", target="b"),
+            WorkflowEdge(id="e2", source="b", target="c"),
+            WorkflowEdge(id="e3", source="c", target="a"),
+        ],
+    )
+    with pytest.raises(ValueError, match="Cycle"):
+        topological_sort(wf)

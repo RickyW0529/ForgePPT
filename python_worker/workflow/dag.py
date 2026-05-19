@@ -3,6 +3,17 @@ from collections import deque
 from models.workflow_def import WorkflowDef
 
 
+def _build_graph(wf: WorkflowDef) -> tuple[dict[str, list[str]], dict[str, int]]:
+    """Build adjacency list and in-degree map from workflow edges."""
+    adj = {n.id: [] for n in wf.nodes}
+    in_degree = {n.id: 0 for n in wf.nodes}
+    for edge in wf.edges:
+        if edge.source in adj and edge.target in in_degree:
+            adj[edge.source].append(edge.target)
+            in_degree[edge.target] += 1
+    return adj, in_degree
+
+
 def validate_dag(wf: WorkflowDef) -> None:
     """Validate workflow DAG constraints.
 
@@ -29,11 +40,7 @@ def validate_dag(wf: WorkflowDef) -> None:
             raise ValueError(f"Edge references unknown target: {edge.target}")
 
     # Cycle detection (Kahn's algorithm)
-    in_degree = {n.id: 0 for n in wf.nodes}
-    adj = {n.id: [] for n in wf.nodes}
-    for edge in wf.edges:
-        adj[edge.source].append(edge.target)
-        in_degree[edge.target] += 1
+    adj, in_degree = _build_graph(wf)
 
     queue = deque([n for n, d in in_degree.items() if d == 0])
     visited = 0
@@ -68,11 +75,7 @@ def validate_dag(wf: WorkflowDef) -> None:
 
 def topological_sort(wf: WorkflowDef) -> list[str]:
     """Return a topological ordering of node IDs."""
-    in_degree = {n.id: 0 for n in wf.nodes}
-    adj = {n.id: [] for n in wf.nodes}
-    for edge in wf.edges:
-        adj[edge.source].append(edge.target)
-        in_degree[edge.target] += 1
+    adj, in_degree = _build_graph(wf)
 
     queue = deque([n for n, d in in_degree.items() if d == 0])
     result = []

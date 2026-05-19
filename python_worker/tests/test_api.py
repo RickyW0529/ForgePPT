@@ -92,10 +92,32 @@ def test_create_workflow_accepted():
     assert data["workflow_id"] == "good"
     assert data["status"] == "running"
 
+    # Verify GET returns running state immediately
+    resp = client.get("/api/v1/workflows/good")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "running"
+
 
 def test_get_workflow_not_found():
     resp = client.get("/api/v1/workflows/nonexistent")
     assert resp.status_code == 404
+
+
+def test_create_workflow_invalid_path():
+    """Path traversal attempt should return 400."""
+    resp = client.post("/api/v1/workflows", json={
+        "workflow_definition": {
+            "workflow_id": "bad-path",
+            "nodes": [
+                {"id": "upload", "type": "upload", "position": {"x": 0, "y": 0}, "data": {}},
+                {"id": "export", "type": "export", "position": {"x": 0, "y": 0}, "data": {}},
+            ],
+            "edges": [{"id": "e1", "source": "upload", "target": "export"}]
+        },
+        "file_path": "../../../etc/passwd"
+    })
+    assert resp.status_code == 400
+    assert "invalid file path" in resp.json()["detail"].lower()
 
 
 def test_workflow_events_stream():

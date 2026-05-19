@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -40,7 +42,15 @@ async def create_workflow(payload: WorkflowCreateRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
     workflow_id = workflow_def.workflow_id
+
+    # Path traversal guard
+    upload_dir = "/tmp"
+    real_path = os.path.realpath(payload.file_path)
+    if not real_path.startswith(os.path.realpath(upload_dir) + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
     register_workflow(workflow_id)
+    _workflow_results[workflow_id] = {"status": "running"}
 
     # Start workflow execution in background
     asyncio.create_task(_run_workflow(workflow_id, workflow_def, payload.file_path))
@@ -91,11 +101,11 @@ async def workflow_events(workflow_id: str):
         while True:
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=30.0)
-                yield f"data: {event}\n\n"
+                yield f"data: {json.dumps(event)}\n\n"
                 if event.get("status") in ("completed", "error") and event.get("node_id") == "export":
                     break
             except asyncio.TimeoutError:
-                yield f'data: {{"type": "heartbeat"}}\n\n'
+                yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
 
     return StreamingResponse(
         event_generator(),

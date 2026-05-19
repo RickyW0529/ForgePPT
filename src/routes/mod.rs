@@ -16,6 +16,7 @@ mod preferences;
 mod sse;
 mod upload;
 mod tasks;
+mod workflows;
 
 pub fn create_routes() -> Router {
     let config = GatewayConfig::default();
@@ -36,6 +37,9 @@ pub fn create_routes() -> Router {
         .route("/api/v1/download", get(download::download_handler))
         .route("/api/v1/preferences", post(preferences::write_preference))
         .route("/api/v1/preferences/context", get(preferences::get_context))
+        .route("/api/v1/workflows", post(workflows::create_workflow_handler))
+        .route("/api/v1/workflows/{workflow_id}", get(workflows::get_workflow_handler))
+        .route("/api/v1/workflows/{workflow_id}/events", get(workflows::workflow_events_handler))
         .layer(Extension(broadcaster))
         .layer(Extension(python_client))
         .layer(Extension(qdrant_client))

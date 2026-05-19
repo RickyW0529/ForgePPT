@@ -20,6 +20,10 @@ dist/
 .idea/
 .vscode/
 
+# Worktrees
+.worktrees/
+worktrees/
+
 # Uploads / temp
 *.pptx
 !tests/fixtures/*.pptx

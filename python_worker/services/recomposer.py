@@ -3,12 +3,29 @@ import tempfile
 from pathlib import Path
 
 from pptx import Presentation
+from pptx.dml.color import RGBColor
+from pptx.util import Pt
 
-from models.ppt_state import Image, PPTState, TextBox
+from models.ppt_state import Image, PPTState, TextBox, TextStyle
 
 
-def _replace_text_preserving_format(shape, new_content: str) -> None:
-    """Replace shape text while preserving original formatting."""
+def _hex_to_rgb_color(hex_color: str) -> RGBColor:
+    return RGBColor.from_string(hex_color.lstrip("#"))
+
+
+def _apply_text_style_to_run(run, style: TextStyle) -> None:
+    if style.font_color:
+        run.font.color.rgb = _hex_to_rgb_color(style.font_color)
+    if style.font_size_pt:
+        run.font.size = Pt(style.font_size_pt)
+    if style.bold is not None:
+        run.font.bold = style.bold
+    if style.italic is not None:
+        run.font.italic = style.italic
+
+
+def _replace_text_preserving_format(shape, new_content: str, style: TextStyle | None = None) -> None:
+    """Replace shape text while preserving original formatting and applying requested style changes."""
     if not shape.has_text_frame:
         return
     text_frame = shape.text_frame
@@ -20,6 +37,8 @@ def _replace_text_preserving_format(shape, new_content: str) -> None:
     if not first_para.runs:
         run = first_para.add_run()
         run.text = new_content
+        if style:
+            _apply_text_style_to_run(run, style)
         return
 
     first_run = first_para.runs[0]
@@ -31,6 +50,8 @@ def _replace_text_preserving_format(shape, new_content: str) -> None:
         run.text = ""
 
     first_run.text = new_content
+    if style:
+        _apply_text_style_to_run(first_run, style)
 
 
 def _find_shape_by_geometry(slide, left: int, top: int, width: int, height: int):
@@ -55,7 +76,7 @@ def _write_text_changes(slide, elements: list[TextBox]) -> None:
             height=elem.size.height_emu,
         )
         if shape and shape.has_text_frame:
-            _replace_text_preserving_format(shape, elem.content)
+            _replace_text_preserving_format(shape, elem.content, elem.style)
 
 
 def _write_image_changes(slide, elements: list[Image]) -> None:

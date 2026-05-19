@@ -14,8 +14,8 @@ pub async fn download_handler(
     Extension(client): Extension<PythonWorkerClient>,
     Query(query): Query<DownloadQuery>,
 ) -> impl IntoResponse {
-    let url = format!("{}/api/v1/download?path={}", client.base_url, query.path);
-    match client.client.get(&url).send().await {
+    let url = format!("{}/api/v1/download", client.base_url);
+    match client.client.get(&url).query(&[("path", &query.path)]).send().await {
         Ok(resp) => {
             let status = resp.status();
             let headers = resp.headers().clone();

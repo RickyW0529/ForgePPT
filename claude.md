@@ -206,3 +206,82 @@ For multi-step tasks, state a brief plan:
 2. [Step] → verify: [check]
 3. [Step] → verify: [check]
 ```
+
+## Known Bug Patterns & Debugging Checklist
+
+This section captures recurring failure modes discovered during integration. Treat it as a pre-flight checklist before claiming a feature "works end-to-end."
+
+### Frontend → Gateway Data Contract
+
+**Bug:** `parsedState` stored the entire API response wrapper (`{success, data, request_id}`) instead of the inner `data` object.
+- **File:** `frontend/src/stores/useFileStore.ts`
+- **Impact:** Task API received `{success, data, ...}` as `ppt_state`, causing Pydantic 400 errors.
+- **Fix:** `parsedState: data.data ?? data`
+- **Lesson:** Python Worker wraps responses in `{success, true, data: ..., request_id: ...}`. Frontend must unwrap `data.data` before using it as `ppt_state`.
+
+### Docker Internal Networking (localhost Trap)
+
+**Bug:** Frontend Vite proxy pointed to `http://localhost:3000`, but inside the `frontend` container `localhost` means the container itself.
+- **File:** `frontend/vite.config.ts`
+- **Impact:** Upload requests from browser reached the Vite dev server but failed to proxy to Gateway.
+- **Fix:** Change proxy target to Docker Compose service name: `http://gateway:3000`
+- **Lesson:** Never use `localhost` for inter-service communication inside Docker. Use service names.
+
+### Gateway Proxy: URL Encoding
+
+**Bug:** Gateway forwarded download requests by concatenating `path` directly into the upstream URL string.
+- **File:** `src/routes/download.rs`
+- **Impact:** Filenames with spaces or CJK characters produced malformed URLs, causing 404 on the Worker.
+- **Fix:** Use `client.get(&url).query(&[("path", &query.path)]).send()` instead of string concatenation.
+- **Lesson:** When proxying query parameters, always let the HTTP client handle URL encoding. Never manually interpolate.
+
+### Axum Multipart Body Limit
+
+**Bug:** Axum's default body limit (2MB) silently rejected multipart uploads larger than the limit, but the handler used `.unwrap()` on `next_field()`, causing thread panic and 500.
+- **File:** `src/routes/upload.rs`, `src/routes/mod.rs`
+- **Impact:** Upload of any PPT > 2MB returned 500.
+- **Fix:**
+  1. Add `DefaultBodyLimit::max(config.max_upload_size)` to the upload route.
+  2. Replace all `.unwrap()` in the handler with proper error mapping to 400/502.
+- **Lesson:** Axum multipart requires explicit `DefaultBodyLimit`. Never unwrap user-provided multipart fields.
+
+### React Hooks Order Violation
+
+**Bug:** `useTaskStore((s) => s.exportPath)` was called inside a conditional branch (`if (nodeId === 'node-export')`).
+- **File:** `frontend/src/components/ParamPanel.tsx`
+- **Impact:** Switching selected nodes caused React to crash with "Rendered more hooks than during the previous render."
+- **Fix:** Move the hook call to the top level of the component, before any conditional returns.
+- **Lesson:** Hooks must be called in the exact same order on every render. No hooks inside `if` blocks that guard `return`.
+
+## Architecture Notes
+
+### What the Gateway Actually Does Today
+
+In the current MVP, the Rust Gateway is primarily a pass-through proxy for:
+- `/api/v1/upload` → Worker
+- `/api/v1/tasks` → Worker
+- `/api/v1/download` → Worker
+
+It adds real value only on:
+- `/api/v1/preferences` and `/api/v1/preferences/context` (Qdrant + Embedding logic)
+- `/api/v1/events` (in-memory SSE broadcaster)
+- CORS, rate limiting, static file serving
+
+**Implication:** If the project stays at this feature scope, merging the proxy routes into the Python Worker (with FastAPI `CORSMiddleware`) would reduce one moving part. Gateway becomes justified only when adding auth, caching, protocol translation, or multiple upstream services.
+
+### What "Theme" Edits Actually Modify
+
+The `theme` edit request (`edit_requests[].type === "theme"`) invokes `ppt_apply_style` via LLM tool calling. The current tool schema has **no background or shape-fill fields**:
+
+```python
+class PPTApplyStyleInput(BaseModel):
+    slide_number: int | None = None
+    target: Literal["all_text"] = "all_text"
+    font_color: str | None = None          # text only
+    font_size_multiplier: float | None = None
+    bold: bool | None = None
+```
+
+The recomposer (`services/recomposer.py`) writes only text run properties (`run.font.color.rgb`). It does **not** iterate over `slide.background` or `shape.fill`.
+
+**Implication:** A prompt like "改成整体黑色风格" will set all text to `#000000`. If the original slide has a dark background, the text becomes invisible. This is expected MVP behavior, not a bug. Background editing requires a future `ppt_set_background` tool (listed in design spec out-of-scope).

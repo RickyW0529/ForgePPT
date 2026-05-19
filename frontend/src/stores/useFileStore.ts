@@ -56,7 +56,7 @@ export const useFileStore = create<FileState>((set) => ({
       set({
         fileName: file.name,
         fileSize: file.size,
-        parsedState: data,
+        parsedState: data.data ?? data,
         isUploading: false,
         uploadError: null,
       });

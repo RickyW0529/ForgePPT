@@ -19,6 +19,7 @@ export default function ParamPanel({ nodeId }: ParamPanelProps) {
   const status = nodeStatuses[nodeId] ?? 'idle';
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const exportPath = useTaskStore((s) => s.exportPath);
 
   const handleFile = async (file: File) => {
     try {
@@ -129,7 +130,6 @@ export default function ParamPanel({ nodeId }: ParamPanelProps) {
   }
 
   if (nodeId === 'node-export') {
-    const exportPath = useTaskStore((s) => s.exportPath);
     const downloadUrl = exportPath ? `/api/v1/download?path=${encodeURIComponent(exportPath)}` : null;
 
     return (

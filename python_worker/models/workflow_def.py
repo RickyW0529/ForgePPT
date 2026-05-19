@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 
-class Position(BaseModel):
+class CanvasPosition(BaseModel):
     x: float
     y: float
 
@@ -13,7 +13,7 @@ class Position(BaseModel):
 class WorkflowNode(BaseModel):
     id: str
     type: Literal["upload", "page_allocator", "agent", "merge", "export"]
-    position: Position
+    position: CanvasPosition
     data: dict[str, Any]
 
 
@@ -28,7 +28,7 @@ class AgentNodeConfig(BaseModel):
     prompt: str = ""
     temperature: float = Field(0.3, ge=0.0, le=1.0)
     model: str | None = None
-    pageScope: list[int] = Field(default_factory=list)
+    page_scope: list[int] = Field(default_factory=list, alias="pageScope")
 
 
 class WorkflowDef(BaseModel):

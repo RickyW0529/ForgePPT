@@ -1,14 +1,15 @@
 import pytest
-from models.workflow_def import WorkflowDef, WorkflowNode, WorkflowEdge, AgentNodeConfig, Position
+from pydantic import ValidationError
+from models.workflow_def import WorkflowDef, WorkflowNode, WorkflowEdge, AgentNodeConfig, CanvasPosition
 
 
 def test_workflow_def_predecessors():
     wf = WorkflowDef(
         workflow_id="test",
         nodes=[
-            WorkflowNode(id="a", type="upload", position=Position(x=0, y=0), data={}),
-            WorkflowNode(id="b", type="agent", position=Position(x=0, y=0), data={}),
-            WorkflowNode(id="c", type="merge", position=Position(x=0, y=0), data={}),
+            WorkflowNode(id="a", type="upload", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="b", type="agent", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="c", type="merge", position=CanvasPosition(x=0, y=0), data={}),
         ],
         edges=[
             WorkflowEdge(id="e1", source="a", target="b"),
@@ -20,6 +21,35 @@ def test_workflow_def_predecessors():
     assert wf.get_predecessors("a") == []
 
 
+def test_workflow_def_successors():
+    wf = WorkflowDef(
+        workflow_id="test",
+        nodes=[
+            WorkflowNode(id="a", type="upload", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="b", type="agent", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="c", type="merge", position=CanvasPosition(x=0, y=0), data={}),
+        ],
+        edges=[
+            WorkflowEdge(id="e1", source="a", target="b"),
+            WorkflowEdge(id="e2", source="b", target="c"),
+        ],
+    )
+    assert wf.get_successors("a") == ["b"]
+    assert wf.get_successors("b") == ["c"]
+    assert wf.get_successors("c") == []
+
+
+def test_workflow_def_get_node_miss():
+    wf = WorkflowDef(
+        workflow_id="test",
+        nodes=[
+            WorkflowNode(id="a", type="upload", position=CanvasPosition(x=0, y=0), data={}),
+        ],
+        edges=[],
+    )
+    assert wf.get_node("z") is None
+
+
 def test_agent_node_config_validation():
     config = AgentNodeConfig(role="text_refiner", prompt="Make it better", temperature=0.5)
     assert config.role == "text_refiner"
@@ -27,5 +57,10 @@ def test_agent_node_config_validation():
 
 
 def test_agent_node_config_temperature_out_of_range():
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         AgentNodeConfig(role="x", temperature=1.5)
+
+
+def test_agent_node_config_temperature_low_boundary():
+    with pytest.raises(ValidationError):
+        AgentNodeConfig(role="x", temperature=-0.1)

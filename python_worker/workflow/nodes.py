@@ -104,6 +104,12 @@ def svg_placeholder_node(state: GraphState, request: EditRequest, llm, tools: li
     }
 
 
+def _response_tool_calls(response) -> list:
+    if isinstance(response, dict):
+        return response.get("tool_calls") or []
+    return getattr(response, "tool_calls", None) or []
+
+
 def _tool_call_name(tool_call) -> str | None:
     if isinstance(tool_call, dict):
         return tool_call.get("name")
@@ -134,7 +140,7 @@ def theme_refiner_node(state: GraphState, request: EditRequest, llm, tools: list
     ]
     llm_with_tools = llm.bind_tools(ppt_tools)
     response = llm_with_tools.invoke(messages)
-    tool_calls = getattr(response, "tool_calls", None) or []
+    tool_calls = _response_tool_calls(response)
 
     if not tool_calls:
         return {

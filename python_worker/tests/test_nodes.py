@@ -80,6 +80,40 @@ def test_theme_refiner_node_executes_ai_tool_call_for_slide_color():
     mock_llm.bind_tools.assert_called_once()
 
 
+def test_theme_refiner_node_executes_dict_response_tool_call_for_slide_color():
+    from workflow.nodes import theme_refiner_node
+
+    ppt_state = make_ppt_state_with_three_slides()
+    state = GraphState.create(ppt_state=ppt_state)
+    request = EditRequest(type="theme", prompt="把第三页整体颜色改成蓝色")
+
+    mock_llm = MagicMock()
+    bound_llm = MagicMock()
+    bound_llm.invoke.return_value = {
+        "tool_calls": [
+            {
+                "name": "ppt_apply_style",
+                "args": {
+                    "slide_number": 3,
+                    "target": "all_text",
+                    "font_color": "#0000FF",
+                    "font_size_multiplier": None,
+                    "bold": None,
+                },
+            }
+        ]
+    }
+    mock_llm.bind_tools.return_value = bound_llm
+
+    result = theme_refiner_node(state, request, mock_llm)
+
+    assert result["edit_results"][0].status == "completed"
+    assert result["ppt_state"].slides[0].elements[0].style.font_color is None
+    assert result["ppt_state"].slides[1].elements[0].style.font_color is None
+    assert result["ppt_state"].slides[2].elements[0].style.font_color == "#0000FF"
+    mock_llm.bind_tools.assert_called_once()
+
+
 def test_theme_refiner_node_fails_when_ai_does_not_call_tool():
     from workflow.nodes import theme_refiner_node
 

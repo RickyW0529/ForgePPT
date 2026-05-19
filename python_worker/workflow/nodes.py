@@ -7,12 +7,13 @@ except ImportError:
     import xml.etree.ElementTree as DefusedET
 
 from models.ppt_state import PPTState
-from models.workflow import EditRequest, EditResult, GraphState, RefinerOutput, SVGOutput, ThemeOutput
+from models.workflow import EditRequest, EditResult, GraphState, RefinerOutput, SVGOutput
 from llm.client import get_llm_client
-from llm.prompts import build_refiner_messages, build_svg_messages, build_theme_messages
+from llm.prompts import build_ppt_editing_messages, build_refiner_messages, build_svg_messages
 from llm.tools.registry import ToolRegistry
 from llm.tools.svg_generator import svg_generator_tool
 from llm.tools.ppt_screenshot import ppt_screenshot_tool
+from llm.tools.ppt_apply_style import PPTApplyStyleInput, apply_style_to_ppt_state, ppt_apply_style
 from services.recomposer import recompose_pptx
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -103,36 +104,69 @@ def svg_placeholder_node(state: GraphState, request: EditRequest, llm, tools: li
     }
 
 
+def _tool_call_name(tool_call) -> str | None:
+    if isinstance(tool_call, dict):
+        return tool_call.get("name")
+    return getattr(tool_call, "name", None)
+
+
+def _tool_call_args(tool_call) -> dict:
+    if isinstance(tool_call, dict):
+        return tool_call.get("args") or {}
+    return getattr(tool_call, "args", {}) or {}
+
+
 def theme_refiner_node(state: GraphState, request: EditRequest, llm, tools: list[BaseTool] | None = None) -> dict:
-    """Theme refinement sub-node: applies global color/style changes."""
+    """Theme refinement sub-node: lets AI call PPT editing tools and applies them."""
     ppt_state: PPTState = copy.deepcopy(state["ppt_state"])
+    messages = build_ppt_editing_messages(request.prompt, ppt_state.slide_count)
 
-    text_samples = []
-    for slide in ppt_state.slides:
-        for elem in slide.elements:
-            if elem.element_type == "textbox":
-                text_samples.append(elem.content)
+    ppt_tools = [
+        StructuredTool.from_function(
+            name="ppt_apply_style",
+            description=(
+                "Apply text style changes to a PPT slide scope. Use this for requests "
+                "to change text color or overall color style."
+            ),
+            func=ppt_apply_style,
+            args_schema=PPTApplyStyleInput,
+        )
+    ]
+    llm_with_tools = llm.bind_tools(ppt_tools)
+    response = llm_with_tools.invoke(messages)
+    tool_calls = getattr(response, "tool_calls", None) or []
 
-    messages = build_theme_messages(text_samples, request.prompt)
-    if tools:
-        llm = llm.bind_tools(tools)
-    structured_llm = llm.with_structured_output(ThemeOutput, method="function_calling")
-    response: ThemeOutput = structured_llm.invoke(messages)
+    if not tool_calls:
+        return {
+            "edit_results": [
+                EditResult(
+                    request_id=request.id,
+                    status="failed",
+                    error="AI did not call a PPT editing tool",
+                )
+            ]
+        }
 
-    # Apply theme to all text boxes
-    tb_index = 0
-    for slide in ppt_state.slides:
-        for elem in slide.elements:
-            if elem.element_type == "textbox":
-                color = response.color_palette[tb_index % len(response.color_palette)]
-                elem.style.font_color = color
-                if elem.style.font_size_pt:
-                    elem.style.font_size_pt = round(
-                        elem.style.font_size_pt * response.font_size_multiplier, 1
-                    )
-                if response.make_bold is not None:
-                    elem.style.bold = response.make_bold
-                tb_index += 1
+    summaries = []
+    try:
+        for tool_call in tool_calls:
+            name = _tool_call_name(tool_call)
+            if name != "ppt_apply_style":
+                raise ValueError(f"Unsupported PPT editing tool: {name}")
+            params = PPTApplyStyleInput.model_validate(_tool_call_args(tool_call))
+            result = apply_style_to_ppt_state(ppt_state, params)
+            scope = f"slide {result['slide_number']}" if result["slide_number"] else "all slides"
+            summaries.append(f"ppt_apply_style updated {result['updated_textboxes']} text boxes in {scope}")
+    except Exception as e:
+        return {
+            "edit_results": [
+                EditResult(
+                    request_id=request.id,
+                    status="failed",
+                    error=str(e),
+                )
+            ]
+        }
 
     return {
         "ppt_state": ppt_state,
@@ -140,7 +174,7 @@ def theme_refiner_node(state: GraphState, request: EditRequest, llm, tools: list
             EditResult(
                 request_id=request.id,
                 status="completed",
-                new_content=response.change_summary,
+                new_content="; ".join(summaries),
             )
         ],
     }

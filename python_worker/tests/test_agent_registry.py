@@ -2,8 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from models.ppt_state import PPTState, Slide, SlideSize, TextBox, Position, Size, TextStyle
-from models.workflow_def import AgentNodeConfig
-from workflow.agent_registry import AGENT_ROLES, _build_tools, execute_agent, AgentRole
+from models.workflow_def import AgentNodeConfig, MergeNodeConfig
+from workflow.agent_registry import AGENT_ROLES, _build_tools, execute_agent, AgentRole, execute_merge, _concat_all
 
 
 class MockToolCallResponse:
@@ -106,3 +106,64 @@ def test_execute_agent_with_theme_designer_and_mocked_llm():
 
     assert result.slides[0].elements[0].style.font_color == "#0000FF"
     mock_llm.bind_tools.assert_called_once()
+
+
+def _make_ppt(slide_count: int, source_file: str = "/tmp/test.pptx") -> PPTState:
+    """Helper to create a PPTState with a given number of empty slides."""
+    size = SlideSize(width_emu=9144000, height_emu=5143500, width_px=960.0, height_px=540.0)
+    slides = [
+        Slide(
+            page_num=i,
+            size=size,
+            elements=[],
+        )
+        for i in range(1, slide_count + 1)
+    ]
+    return PPTState(
+        source_file=source_file,
+        slide_count=slide_count,
+        global_props=size,
+        slides=slides,
+    )
+
+
+def test_concat_two_ppts():
+    ppt1 = _make_ppt(2, source_file="/tmp/a.pptx")
+    ppt2 = _make_ppt(2, source_file="/tmp/b.pptx")
+    result = _concat_all([ppt1, ppt2])
+    assert result.slide_count == 4
+    assert len(result.slides) == 4
+    assert [s.page_num for s in result.slides] == [1, 2, 3, 4]
+    assert result.source_file == "/tmp/a.pptx"
+    assert result.global_props == ppt1.global_props
+
+
+def test_concat_single_ppt():
+    ppt = _make_ppt(3, source_file="/tmp/single.pptx")
+    result = _concat_all([ppt])
+    assert result.slide_count == 3
+    assert len(result.slides) == 3
+    assert [s.page_num for s in result.slides] == [1, 2, 3]
+    assert result.source_file == "/tmp/single.pptx"
+
+
+def test_concat_empty_raises():
+    with pytest.raises(ValueError, match="Merge requires at least one input"):
+        _concat_all([])
+
+
+def test_concat_exceeds_50_raises():
+    ppt1 = _make_ppt(30)
+    ppt2 = _make_ppt(30)
+    with pytest.raises(ValueError, match="Merged slide count exceeds 50"):
+        _concat_all([ppt1, ppt2])
+
+
+def test_execute_merge_calls_concat_all():
+    ppt1 = _make_ppt(1)
+    ppt2 = _make_ppt(1)
+    config = MergeNodeConfig()
+    result = execute_merge([ppt1, ppt2], config)
+    assert result.slide_count == 2
+    assert len(result.slides) == 2
+    assert [s.page_num for s in result.slides] == [1, 2]

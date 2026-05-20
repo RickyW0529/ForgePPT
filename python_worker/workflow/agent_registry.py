@@ -4,7 +4,7 @@ import copy
 from dataclasses import dataclass
 
 from models.ppt_state import PPTState
-from models.workflow_def import AgentNodeConfig
+from models.workflow_def import AgentNodeConfig, MergeNodeConfig
 from llm.client import get_llm_client
 from llm.prompts import build_ppt_editing_messages
 from llm.tools.ppt_apply_style import PPTApplyStyleInput, apply_style_to_ppt_state, ppt_apply_style
@@ -153,3 +153,43 @@ def _execute_theme_agent(ppt_state: PPTState, config: AgentNodeConfig, role: Age
                 state.slides[i] = copy.deepcopy(original_map[slide.page_num])
 
     return state
+
+
+def _concat_all(inputs: list[PPTState]) -> PPTState:
+    """Concatenate all slides from multiple PPTStates in order.
+
+    The first PPTState is treated as the primary; its global_props and
+    source_file are carried forward.  Slide page_nums are renumbered
+    sequentially starting from 1.  Inputs are not mutated.
+    """
+    if not inputs:
+        raise ValueError("Merge requires at least one input")
+
+    primary = inputs[0]
+    total_slides = sum(p.slide_count for p in inputs)
+    if total_slides > 50:
+        raise ValueError("Merged slide count exceeds 50")
+
+    merged_slides: list = []
+    for ppt in inputs:
+        for slide in ppt.slides:
+            merged_slides.append(copy.deepcopy(slide))
+
+    for i, slide in enumerate(merged_slides, start=1):
+        slide.page_num = i
+
+    return PPTState(
+        source_file=primary.source_file,
+        slide_count=total_slides,
+        global_props=copy.deepcopy(primary.global_props),
+        slides=merged_slides,
+    )
+
+
+def execute_merge(inputs: list[PPTState], config: MergeNodeConfig) -> PPTState:
+    """Execute a merge node against the given PPTStates.
+
+    Currently a placeholder that simply concatenates all inputs in order.
+    """
+    # TODO: integrate LLM merge plan
+    return _concat_all(inputs)

@@ -24,8 +24,8 @@ export default function HeaderBar() {
     }
 
     const uploadNodes = nodes.filter((n) => n.type === 'upload');
-    if (uploadNodes.length !== 1) {
-      addToast({ type: 'error', message: '画布必须有且仅有一个上传节点' });
+    if (uploadNodes.length < 1) {
+      addToast({ type: 'error', message: '画布至少需要一个上传节点' });
       return;
     }
 

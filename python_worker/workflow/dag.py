@@ -22,10 +22,10 @@ def validate_dag(wf: WorkflowDef) -> None:
     """
     node_ids = {n.id for n in wf.nodes}
 
-    # Exactly one upload
+    # At least one upload
     upload_nodes = [n for n in wf.nodes if n.type == "upload"]
-    if len(upload_nodes) != 1:
-        raise ValueError(f"Expected exactly one upload node, found {len(upload_nodes)}")
+    if len(upload_nodes) < 1:
+        raise ValueError(f"Expected at least one upload node, found {len(upload_nodes)}")
 
     # At least one export
     export_nodes = [n for n in wf.nodes if n.type == "export"]
@@ -55,10 +55,9 @@ def validate_dag(wf: WorkflowDef) -> None:
     if visited != len(wf.nodes):
         raise ValueError("Workflow graph contains a cycle")
 
-    # Disconnected subgraph check: all nodes must be reachable from upload
-    upload_id = upload_nodes[0].id
+    # Disconnected subgraph check: all nodes must be reachable from at least one upload
     reachable = set()
-    stack = [upload_id]
+    stack = [n.id for n in upload_nodes]
     while stack:
         cur = stack.pop()
         if cur in reachable:

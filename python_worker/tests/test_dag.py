@@ -104,7 +104,7 @@ def test_validate_dag_disconnected_subgraph():
         validate_dag(wf)
 
 
-def test_validate_dag_multiple_uploads():
+def test_validate_dag_multiple_uploads_allowed():
     wf = WorkflowDef(
         workflow_id="t7",
         nodes=[
@@ -112,10 +112,12 @@ def test_validate_dag_multiple_uploads():
             WorkflowNode(id="b", type="upload", position=CanvasPosition(x=0, y=0), data={}),
             WorkflowNode(id="c", type="export", position=CanvasPosition(x=0, y=0), data={}),
         ],
-        edges=[WorkflowEdge(id="e1", source="a", target="c")],
+        edges=[
+            WorkflowEdge(id="e1", source="a", target="c"),
+            WorkflowEdge(id="e2", source="b", target="c"),
+        ],
     )
-    with pytest.raises(ValueError, match="upload"):
-        validate_dag(wf)
+    validate_dag(wf)  # should not raise
 
 
 def test_validate_dag_unknown_edge_target():

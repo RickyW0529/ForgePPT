@@ -19,8 +19,8 @@ export interface WorkflowNodeData {
   pageScope?: number[];
   // page_allocator
   branches?: Record<string, number[]>;
-  // merge
-  mergeStrategy?: 'last_write_wins' | 'error_on_conflict';
+  // merge (AI Composer)
+  mergeStrategy?: string;
   // common
   status: TaskStatus;
 }

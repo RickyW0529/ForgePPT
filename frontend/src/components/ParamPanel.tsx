@@ -311,6 +311,8 @@ function MergeParamPanel({
   onUpdate: (patch: Partial<WorkflowNodeData>) => void;
   onDelete: () => void;
 }) {
+  const [prompt, setPrompt] = useState(data.prompt || '');
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -323,16 +325,23 @@ function MergeParamPanel({
         </button>
       </div>
 
+      <div className="text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded">
+        合并策略: <span className="font-medium">AI Composer</span>
+      </div>
+
       <div>
-        <label className="block text-xs text-gray-500 mb-1">合并策略</label>
-        <select
-          value={data.mergeStrategy || 'last_write_wins'}
-          onChange={(e) => onUpdate({ mergeStrategy: e.target.value as 'last_write_wins' | 'error_on_conflict' })}
-          className="w-full text-sm border border-gray-300 rounded px-2 py-1.5"
-        >
-          <option value="last_write_wins">后写优先</option>
-          <option value="error_on_conflict">冲突报错</option>
-        </select>
+        <label className="block text-xs text-gray-500 mb-1">合并指令 Prompt</label>
+        <textarea
+          value={prompt}
+          onChange={(e) => {
+            setPrompt(e.target.value);
+            onUpdate({ prompt: e.target.value });
+          }}
+          placeholder="描述你希望如何合并多个 PPT，例如：把辅 PPT 的第 2 页插入到主 PPT 第 3 页之后"
+          className="w-full h-20 p-2 text-sm border border-gray-300 rounded resize-none"
+          maxLength={500}
+        />
+        <div className="text-right text-xs text-gray-400">{prompt.length}/500</div>
       </div>
 
       <div className="text-xs text-gray-500">

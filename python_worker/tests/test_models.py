@@ -76,3 +76,37 @@ def test_element_discriminator():
     )
     assert slide.elements[0].element_type == "textbox"
     assert slide.elements[1].element_type == "image"
+
+
+def test_large_slide_count_allowed():
+    """PPTState should allow up to 50 slides."""
+    size = SlideSize(width_emu=9144000, height_emu=5143500, width_px=960.0, height_px=540.0)
+    slides = [
+        Slide(page_num=i, size=size)
+        for i in range(1, 51)
+    ]
+    state = PPTState(
+        source_file="test.pptx",
+        slide_count=50,
+        global_props=size,
+        slides=slides,
+    )
+    assert state.slide_count == 50
+    assert len(state.slides) == 50
+    assert state.slides[49].page_num == 50
+
+
+def test_slide_count_exceeds_max():
+    """PPTState should reject more than 50 slides."""
+    size = SlideSize(width_emu=9144000, height_emu=5143500, width_px=960.0, height_px=540.0)
+    with pytest.raises(ValidationError) as exc_info:
+        PPTState(
+            source_file="test.pptx",
+            slide_count=51,
+            global_props=size,
+            slides=[
+                Slide(page_num=i, size=size)
+                for i in range(1, 52)
+            ],
+        )
+    assert "slide_count" in str(exc_info.value) or "slides" in str(exc_info.value) or "page_num" in str(exc_info.value)

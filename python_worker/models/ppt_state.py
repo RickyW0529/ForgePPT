@@ -66,7 +66,7 @@ class Image(BaseModel):
 
 class Slide(BaseModel):
     slide_id: str = Field(default_factory=lambda: str(uuid4()))
-    page_num: int = Field(..., ge=1, le=3, description="Original PPTX page number (1-based)")
+    page_num: int = Field(..., ge=1, le=50, description="Original PPTX page number (1-based)")
     size: SlideSize = Field(...)
     elements: List[Union[TextBox, Image]] = Field(
         default_factory=list,
@@ -85,8 +85,8 @@ class Slide(BaseModel):
 class PPTState(BaseModel):
     version: str = Field(default="1.0.0", pattern=r"^\d+\.\d+\.\d+$")
     source_file: str = Field(..., max_length=255)
-    slide_count: int = Field(..., ge=1, le=3)
-    slides: List[Slide] = Field(default_factory=list, max_length=3)
+    slide_count: int = Field(..., ge=1, le=50)
+    slides: List[Slide] = Field(default_factory=list, max_length=50)
     global_props: SlideSize = Field(...)
 
     @model_validator(mode="after")

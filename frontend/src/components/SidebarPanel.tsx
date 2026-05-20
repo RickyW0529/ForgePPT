@@ -1,8 +1,10 @@
+import { useWorkflowStore } from '@/stores/useWorkflowStore';
 import { useUIStore } from '@/stores/useUIStore';
 import ParamPanel from './ParamPanel';
 
 export default function SidebarPanel() {
-  const { sidebarOpen, selectedNodeId, toggleSidebar } = useUIStore();
+  const { sidebarOpen, toggleSidebar } = useUIStore();
+  const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId);
 
   if (!sidebarOpen) {
     return (

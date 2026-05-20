@@ -71,6 +71,22 @@ def validate_dag(wf: WorkflowDef) -> None:
         unreachable = node_ids - reachable
         raise ValueError(f"Disconnected subgraph detected: {unreachable}")
 
+    # Each upload must reach at least one merge or export node
+    merge_or_export_ids = {n.id for n in wf.nodes if n.type in ("merge", "export")}
+    for upload in upload_nodes:
+        upload_reachable = set()
+        stack = [upload.id]
+        while stack:
+            cur = stack.pop()
+            if cur in upload_reachable:
+                continue
+            upload_reachable.add(cur)
+            for succ in wf.get_successors(cur):
+                if succ not in upload_reachable:
+                    stack.append(succ)
+        if not (upload_reachable & merge_or_export_ids):
+            raise ValueError(f"Upload node {upload.id} must reach a merge or export node")
+
 
 def topological_sort(wf: WorkflowDef) -> list[str]:
     """Return a topological ordering of node IDs."""

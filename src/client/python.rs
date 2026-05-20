@@ -1,11 +1,13 @@
 use reqwest::Client;
 use serde_json::Value;
+use std::time::Duration;
 
 use crate::config::GatewayConfig;
 
 #[derive(Clone)]
 pub struct PythonWorkerClient {
     pub client: Client,
+    pub sse_client: Client,
     pub base_url: String,
 }
 
@@ -13,6 +15,10 @@ impl PythonWorkerClient {
     pub fn new(config: &GatewayConfig) -> Self {
         Self {
             client: Client::new(),
+            sse_client: Client::builder()
+                .timeout(Duration::from_secs(3600))
+                .build()
+                .unwrap_or_else(|_| Client::new()),
             base_url: config.python_worker_url.clone(),
         }
     }

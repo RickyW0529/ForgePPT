@@ -73,7 +73,7 @@ pub async fn workflow_events_handler(
         "{}/api/v1/workflows/{}/events",
         client.base_url, workflow_id
     );
-    match client.client.get(&url).send().await {
+    match client.sse_client.get(&url).send().await {
         Ok(resp) => {
             let status = resp.status();
             let headers = resp.headers().clone();

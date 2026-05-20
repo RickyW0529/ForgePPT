@@ -1,6 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useWorkflowStore } from '@/stores/useWorkflowStore';
 import { useUIStore } from '@/stores/useUIStore';
+
+const MAX_RECONNECT = 5;
+const RECONNECT_BASE_MS = 1000;
 
 export function useWorkflowSSE() {
   const workflowId = useWorkflowStore((s) => s.workflowId);
@@ -9,14 +12,23 @@ export function useWorkflowSSE() {
   const setExecuting = useWorkflowStore((s) => s.setExecuting);
   const addToast = useUIStore((s) => s.addToast);
 
+  const completedRef = useRef(false);
+
   useEffect(() => {
     if (!workflowId) return;
+    completedRef.current = false;
 
-    const ctrl = new AbortController();
-
+    let retryCount = 0;
     let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    let active = true;
 
     const connect = async () => {
+      if (!active || completedRef.current) return;
+
+      const ctrl = new AbortController();
+      reader = null;
+
       try {
         const resp = await fetch(`/api/v1/workflows/${workflowId}/events`, {
           signal: ctrl.signal,
@@ -27,11 +39,12 @@ export function useWorkflowSSE() {
           throw new Error(`SSE connection failed: ${resp.status}`);
         }
 
+        retryCount = 0;
         reader = resp.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
 
-        while (true) {
+        while (active) {
           if (ctrl.signal.aborted) break;
           const { done, value } = await reader.read();
           if (done) break;
@@ -42,7 +55,7 @@ export function useWorkflowSSE() {
           buffer = messages.pop() || '';
 
           for (const message of messages) {
-            if (ctrl.signal.aborted) break;
+            if (ctrl.signal.aborted || !active) break;
             const dataLines = message
               .split('\n')
               .filter((l) => l.startsWith('data:'))
@@ -61,6 +74,7 @@ export function useWorkflowSSE() {
               if (event.export_path) {
                 setExportPath(event.export_path);
                 setExecuting(false);
+                completedRef.current = true;
                 addToast({ type: 'success', message: '工作流执行完成' });
               }
             } catch {
@@ -69,18 +83,28 @@ export function useWorkflowSSE() {
           }
         }
       } catch (err) {
-        if (!(err instanceof Error) || err.name !== 'AbortError') {
+        if (!active) return;
+        if (err instanceof Error && err.name === 'AbortError') return;
+
+        retryCount += 1;
+        if (retryCount > MAX_RECONNECT) {
           console.error('SSE error:', err);
-          addToast({ type: 'error', message: 'SSE 连接断开' });
+          addToast({ type: 'error', message: 'SSE 连接断开，已达最大重试次数' });
           setExecuting(false);
+          return;
         }
+
+        const delay = RECONNECT_BASE_MS * Math.pow(2, retryCount - 1);
+        timeoutId = setTimeout(connect, delay);
+        return;
       }
     };
 
     connect();
 
     return () => {
-      ctrl.abort();
+      active = false;
+      if (timeoutId) clearTimeout(timeoutId);
       reader?.cancel().catch(() => {});
     };
   }, [workflowId, setNodeStatus, setExportPath, setExecuting, addToast]);

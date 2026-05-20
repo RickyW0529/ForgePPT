@@ -13,12 +13,13 @@ export default function HeaderBar() {
   const setExecuting = useWorkflowStore((s) => s.setExecuting);
   const resetExecution = useWorkflowStore((s) => s.resetExecution);
   const parsedState = useFileStore((s) => s.parsedState);
+  const filePath = useFileStore((s) => s.filePath);
   const addToast = useUIStore((s) => s.addToast);
   const [executionError, setExecutionError] = useState<string | null>(null);
 
   const handleExecute = async () => {
     setExecutionError(null);
-    if (!parsedState) {
+    if (!parsedState || !filePath) {
       addToast({ type: 'error', message: '请先上传 PPT 文件' });
       return;
     }
@@ -60,7 +61,7 @@ export default function HeaderBar() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           workflow_definition: workflowDef,
-          file_path: '/tmp/forgeppt_uploads/uploaded.pptx',
+          file_path: filePath,
         }),
       });
 

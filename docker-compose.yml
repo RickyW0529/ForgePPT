@@ -35,7 +35,7 @@ services:
       - EMBEDDING_DIMENSIONS=${PPT_EMBEDDING_DIMENSIONS:-768}
     volumes:
       - ./python_worker:/app
-      - pptx_uploads:/tmp/uploads
+      - pptx_uploads:/tmp/forgeppt_uploads
     depends_on:
       qdrant:
         condition: service_healthy

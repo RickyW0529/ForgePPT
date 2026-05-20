@@ -37,6 +37,7 @@ async def upload_pptx(file: UploadFile = File(...)):
             "success": True,
             "data": ppt_state.model_dump(),
             "request_id": file_path.stem,
+            "file_path": str(file_path),
         }
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Parse error: {e}")

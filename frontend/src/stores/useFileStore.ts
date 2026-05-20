@@ -3,6 +3,7 @@ import { create } from 'zustand';
 interface FileState {
   fileName: string | null;
   fileSize: number | null;
+  filePath: string | null;
   parsedState: unknown | null;
   isUploading: boolean;
   uploadError: string | null;
@@ -19,6 +20,7 @@ const MAX_SIZE = 50 * 1024 * 1024; // 50MB
 export const useFileStore = create<FileState>((set) => ({
   fileName: null,
   fileSize: null,
+  filePath: null,
   parsedState: null,
   isUploading: false,
   uploadError: null,
@@ -56,6 +58,7 @@ export const useFileStore = create<FileState>((set) => ({
       set({
         fileName: file.name,
         fileSize: file.size,
+        filePath: data.file_path ?? null,
         parsedState: data.data ?? data,
         isUploading: false,
         uploadError: null,
@@ -71,6 +74,7 @@ export const useFileStore = create<FileState>((set) => ({
     set({
       fileName: null,
       fileSize: null,
+      filePath: null,
       parsedState: null,
       isUploading: false,
       uploadError: null,

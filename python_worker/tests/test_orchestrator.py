@@ -66,6 +66,38 @@ async def test_execute_simple_linear_workflow():
 
 
 @pytest.mark.asyncio
+async def test_execute_single_upload_to_merge():
+    """T1: single upload → merge → export (backward compat, merge has single input)."""
+    wf = WorkflowDef(
+        workflow_id="wf0",
+        nodes=[
+            WorkflowNode(id="upload", type="upload", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="merge", type="merge", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="export", type="export", position=CanvasPosition(x=0, y=0), data={}),
+        ],
+        edges=[
+            WorkflowEdge(id="e1", source="upload", target="merge"),
+            WorkflowEdge(id="e2", source="merge", target="export"),
+        ],
+    )
+
+    with patch("workflow.executors.parse_pptx") as mock_parse, \
+         patch("workflow.executors.recompose_pptx") as mock_recompose, \
+         patch("workflow.executors.execute_merge") as mock_merge:
+
+        state = _make_simple_state()
+        mock_parse.return_value = state
+        mock_recompose.return_value = "/tmp/output.pptx"
+        mock_merge.return_value = state
+
+        result = await execute_workflow(wf, "/tmp/test.pptx")
+        assert result == "/tmp/forgeppt_output__tmp_test.pptx"
+        mock_parse.assert_called_once_with("/tmp/test.pptx")
+        mock_merge.assert_called_once()
+        assert len(mock_merge.call_args[0][0]) == 1
+
+
+@pytest.mark.asyncio
 async def test_execute_parallel_branches():
     """upload -> allocator -> [agent_a, agent_b] -> merge -> export"""
     wf = WorkflowDef(

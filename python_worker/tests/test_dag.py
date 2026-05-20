@@ -199,3 +199,23 @@ def test_validate_dag_upload_reaches_export_no_merge():
         ],
     )
     validate_dag(wf)  # should not raise
+
+
+def test_validate_dag_merge_upstream_no_upload():
+    """T6: merge whose upstream is only agents (no upload path) is disconnected → reject."""
+    wf = WorkflowDef(
+        workflow_id="t13",
+        nodes=[
+            WorkflowNode(id="u1", type="upload", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="ag", type="agent", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="m", type="merge", position=CanvasPosition(x=0, y=0), data={}),
+            WorkflowNode(id="e", type="export", position=CanvasPosition(x=0, y=0), data={}),
+        ],
+        edges=[
+            WorkflowEdge(id="e1", source="u1", target="e"),
+            WorkflowEdge(id="e2", source="ag", target="m"),
+            WorkflowEdge(id="e3", source="m", target="e"),
+        ],
+    )
+    with pytest.raises(ValueError, match="Disconnected"):
+        validate_dag(wf)

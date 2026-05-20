@@ -167,3 +167,35 @@ def test_execute_merge_calls_concat_all():
     assert result.slide_count == 2
     assert len(result.slides) == 2
     assert [s.page_num for s in result.slides] == [1, 2]
+
+
+def test_concat_three_ppts():
+    """T3: three uploads → merge — placeholder concat works for 3 inputs."""
+    ppt1 = _make_ppt(2, source_file="/tmp/a.pptx")
+    ppt2 = _make_ppt(3, source_file="/tmp/b.pptx")
+    ppt3 = _make_ppt(1, source_file="/tmp/c.pptx")
+    result = _concat_all([ppt1, ppt2, ppt3])
+    assert result.slide_count == 6
+    assert [s.page_num for s in result.slides] == [1, 2, 3, 4, 5, 6]
+    assert result.source_file == "/tmp/a.pptx"
+
+
+def test_concat_uses_first_input_as_primary_with_different_size():
+    """T10: first input (primary) determines global_props even if sizes differ."""
+    size1 = SlideSize(width_emu=1000000, height_emu=500000, width_px=100.0, height_px=50.0)
+    size2 = SlideSize(width_emu=2000000, height_emu=1000000, width_px=200.0, height_px=100.0)
+    ppt1 = PPTState(
+        source_file="/tmp/primary.pptx",
+        slide_count=1,
+        global_props=size1,
+        slides=[Slide(page_num=1, size=size1, elements=[])],
+    )
+    ppt2 = PPTState(
+        source_file="/tmp/supplementary.pptx",
+        slide_count=1,
+        global_props=size2,
+        slides=[Slide(page_num=1, size=size2, elements=[])],
+    )
+    result = _concat_all([ppt1, ppt2])
+    assert result.global_props == size1
+    assert result.source_file == "/tmp/primary.pptx"

@@ -115,3 +115,61 @@ async def test_execute_parallel_branches():
         result = await execute_workflow(wf, "/tmp/test.pptx")
         assert result == "/tmp/forgeppt_output__tmp_test.pptx"
         assert mock_agent.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_execute_multi_upload_merge():
+    """upload1 -> agent_a -> merge -> export
+       upload2 -> agent_b -> merge -> export"""
+    wf = WorkflowDef(
+        workflow_id="wf3",
+        nodes=[
+            WorkflowNode(id="upload1", type="upload", position=CanvasPosition(x=0, y=0), data={"filePath": "/tmp/main.pptx"}),
+            WorkflowNode(id="upload2", type="upload", position=CanvasPosition(x=0, y=0), data={"filePath": "/tmp/extra.pptx"}),
+            WorkflowNode(
+                id="agent_a",
+                type="agent",
+                position=CanvasPosition(x=0, y=0),
+                data=AgentNodeConfig(role="text_refiner", prompt="refine main").model_dump(),
+            ),
+            WorkflowNode(
+                id="agent_b",
+                type="agent",
+                position=CanvasPosition(x=0, y=0),
+                data=AgentNodeConfig(role="color_optimizer", prompt="dark blue extra").model_dump(),
+            ),
+            WorkflowNode(id="merge", type="merge", position=CanvasPosition(x=0, y=0), data={"prompt": "combine slides"}),
+            WorkflowNode(id="export", type="export", position=CanvasPosition(x=0, y=0), data={}),
+        ],
+        edges=[
+            WorkflowEdge(id="e1", source="upload1", target="agent_a"),
+            WorkflowEdge(id="e2", source="upload2", target="agent_b"),
+            WorkflowEdge(id="e3a", source="agent_a", target="merge"),
+            WorkflowEdge(id="e3b", source="agent_b", target="merge"),
+            WorkflowEdge(id="e4", source="merge", target="export"),
+        ],
+    )
+
+    with patch("workflow.executors.parse_pptx") as mock_parse, \
+         patch("workflow.executors.recompose_pptx") as mock_recompose, \
+         patch("workflow.executors.execute_agent") as mock_agent, \
+         patch("workflow.executors.execute_merge") as mock_merge:
+
+        state1 = _make_simple_state("main")
+        state2 = _make_simple_state("extra")
+        mock_parse.side_effect = [state1, state2]
+        mock_recompose.return_value = "/tmp/output.pptx"
+        mock_agent.return_value = _make_simple_state()
+        mock_merge.return_value = _make_simple_state()
+
+        result = await execute_workflow(wf, "/tmp/fallback.pptx")
+        assert result == "/tmp/forgeppt_output__tmp_test.pptx"
+        assert mock_parse.call_count == 2
+        mock_parse.assert_any_call("/tmp/main.pptx")
+        mock_parse.assert_any_call("/tmp/extra.pptx")
+        assert mock_agent.call_count == 2
+        assert mock_merge.call_count == 1
+        mock_merge.assert_called_once()
+        call_args = mock_merge.call_args
+        assert len(call_args[0][0]) == 2  # two inputs
+        assert call_args[0][1].prompt == "combine slides"

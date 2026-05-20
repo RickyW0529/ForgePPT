@@ -129,7 +129,7 @@ def parse_pptx(file_path: str | Path, page_nums: list[int] | None = None) -> PPT
     Args:
         file_path: Path to the .pptx file.
         page_nums: Optional list of 1-based page numbers to extract.
-            Defaults to first 3 pages.
+            Defaults to first 50 pages.
 
     Returns:
         PPTState representing the parsed slides.
@@ -141,13 +141,13 @@ def parse_pptx(file_path: str | Path, page_nums: list[int] | None = None) -> PPT
     total_slides = len(prs.slides)
 
     if page_nums is None:
-        page_nums = list(range(1, min(total_slides + 1, 4)))  # default first 3
+        page_nums = list(range(1, min(total_slides + 1, 51)))  # default first 50
     else:
         page_nums = sorted(set(page_nums))
         if any(p < 1 or p > total_slides for p in page_nums):
             raise ValueError(f"Page numbers out of range (1-{total_slides})")
-        if len(page_nums) > 3:
-            raise ValueError("MVP supports at most 3 pages")
+        if len(page_nums) > 50:
+            raise ValueError("Supports at most 50 pages")
 
     slides = []
     for page_num in page_nums:

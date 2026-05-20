@@ -23,8 +23,8 @@ function MergeNode({ data, selected }: NodeProps<Node<WorkflowNodeData>>) {
         <Merge size={14} className="text-orange-600" />
         <span className="text-xs font-medium text-orange-700">合并</span>
       </div>
-      <div className="px-3 py-2 text-xs text-gray-500">
-        {data.mergeStrategy === 'last_write_wins' ? '后写优先' : '冲突报错'}
+      <div className="px-3 py-2 text-xs text-gray-500 truncate max-w-[140px]">
+        {data.prompt ? data.prompt : 'AI Composer'}
       </div>
       <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-deepblue-500" />
     </div>

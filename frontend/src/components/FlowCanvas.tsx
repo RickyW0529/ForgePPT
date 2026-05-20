@@ -17,7 +17,7 @@ const defaultNodeData: Record<string, Partial<WorkflowNodeData>> = {
   upload: { status: 'idle' },
   page_allocator: { status: 'idle', branches: { 'branch-a': [] } },
   agent: { status: 'idle', role: 'theme_designer', prompt: '', temperature: 0.3, pageScope: [] },
-  merge: { status: 'idle', mergeStrategy: 'last_write_wins' },
+  merge: { status: 'idle', mergeStrategy: 'ai_composer', prompt: '' },
   export: { status: 'idle' },
 };
 

@@ -20,7 +20,7 @@ export interface WorkflowNodeData {
   // page_allocator
   branches?: Record<string, number[]>;
   // merge (AI Composer)
-  mergeStrategy?: string;
+  mergeStrategy?: 'ai_composer';
   // common
   status: TaskStatus;
 }

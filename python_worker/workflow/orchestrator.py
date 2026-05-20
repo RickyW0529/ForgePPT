@@ -38,7 +38,8 @@ async def execute_workflow(workflow_def: WorkflowDef, file_path: str) -> str:
         preds = workflow_def.get_predecessors(node_id)
 
         if node.type == "upload":
-            future_cache[node_id] = run_upload_node.submit(node_id=node.id, file_path=file_path)
+            upload_path = node.data.get("filePath") or file_path
+            future_cache[node_id] = run_upload_node.submit(node_id=node.id, file_path=upload_path)
 
         elif node.type == "page_allocator":
             upstream = future_cache[preds[0]]

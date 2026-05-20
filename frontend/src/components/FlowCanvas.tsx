@@ -4,61 +4,71 @@ import {
   Background,
   Controls,
   MiniMap,
-  useNodesState,
-  useEdgesState,
   type Node,
-  type Edge,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import { nodeTypes } from './nodes';
-import LockedEdge from './edges/LockedEdge';
-import { useUIStore } from '@/stores/useUIStore';
+import { useWorkflowStore } from '@/stores/useWorkflowStore';
+import type { WorkflowNodeData } from '@/types/workflow';
 
-const edgeTypes = { lockedEdge: LockedEdge };
-
-const initialNodes: Node[] = [
-  {
-    id: 'node-upload',
-    type: 'uploadParser',
-    position: { x: 100, y: 250 },
-    data: { status: 'idle' },
-  },
-  {
-    id: 'node-editor',
-    type: 'editor',
-    position: { x: 420, y: 250 },
-    data: { prompt: '', status: 'idle' },
-  },
-  {
-    id: 'node-export',
-    type: 'exporter',
-    position: { x: 740, y: 250 },
-    data: { status: 'idle' },
-  },
-];
-
-const initialEdges: Edge[] = [
-  {
-    id: 'e-upload-editor',
-    source: 'node-upload',
-    target: 'node-editor',
-    type: 'lockedEdge',
-    deletable: false,
-  },
-  {
-    id: 'e-editor-export',
-    source: 'node-editor',
-    target: 'node-export',
-    type: 'lockedEdge',
-    deletable: false,
-  },
-];
+const defaultNodeData: Record<string, Partial<WorkflowNodeData>> = {
+  upload: { status: 'idle' },
+  page_allocator: { status: 'idle', branches: { 'branch-a': [] } },
+  agent: { status: 'idle', role: 'theme_designer', prompt: '', temperature: 0.3, pageScope: [] },
+  merge: { status: 'idle', mergeStrategy: 'last_write_wins' },
+  export: { status: 'idle' },
+};
 
 export default function FlowCanvas() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const setSelectedNodeId = useUIStore((s) => s.setSelectedNodeId);
+  const { screenToFlowPosition } = useReactFlow();
+  const {
+    nodes,
+    edges,
+    onNodesChange,
+    onEdgesChange,
+    onConnect,
+    addNode,
+    setSelectedNodeId,
+  } = useWorkflowStore();
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const raw = event.dataTransfer.getData('application/reactflow');
+      if (!raw) return;
+
+      const item = JSON.parse(raw);
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      let type = item.type;
+      let data = { ...defaultNodeData[type] };
+
+      if (type.startsWith('agent:')) {
+        const role = type.split(':')[1];
+        type = 'agent';
+        data = { ...defaultNodeData.agent, role };
+      }
+
+      const id = `${type}-${Date.now()}`;
+      addNode({
+        id,
+        type,
+        position,
+        data: data as WorkflowNodeData,
+      });
+    },
+    [screenToFlowPosition, addNode]
+  );
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -78,15 +88,18 @@ export default function FlowCanvas() {
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
         nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
         fitView
         fitViewOptions={{ padding: 0.15, duration: 300 }}
         minZoom={0.3}
         maxZoom={1.5}
-        nodesConnectable={false}
+        nodesConnectable={true}
+        deleteKeyCode={['Backspace', 'Delete']}
       >
         <Background gap={20} size={1} className="bg-surface" />
         <Controls />

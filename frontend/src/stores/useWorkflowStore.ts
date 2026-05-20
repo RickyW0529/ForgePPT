@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { applyNodeChanges, applyEdgeChanges, addEdge, type NodeChange, type EdgeChange, type Connection } from '@xyflow/react';
 import type { Node, Edge } from '@xyflow/react';
 import type { WorkflowNodeData, TaskStatus } from '@/types/workflow';
 
@@ -11,6 +12,9 @@ interface WorkflowState {
   exportPath: string | null;
 
   // Actions
+  onNodesChange: (changes: NodeChange<Node<WorkflowNodeData>>[]) => void;
+  onEdgesChange: (changes: EdgeChange[]) => void;
+  onConnect: (connection: Connection) => void;
   setNodes: (nodes: Node<WorkflowNodeData>[] | ((prev: Node<WorkflowNodeData>[]) => Node<WorkflowNodeData>[])) => void;
   setEdges: (edges: Edge[] | ((prev: Edge[]) => Edge[])) => void;
   addNode: (node: Node<WorkflowNodeData>) => void;
@@ -32,6 +36,21 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
   isExecuting: false,
   workflowId: null,
   exportPath: null,
+
+  onNodesChange: (changes) =>
+    set((state) => ({
+      nodes: applyNodeChanges(changes, state.nodes),
+    })),
+
+  onEdgesChange: (changes) =>
+    set((state) => ({
+      edges: applyEdgeChanges(changes, state.edges),
+    })),
+
+  onConnect: (connection) =>
+    set((state) => ({
+      edges: addEdge(connection, state.edges),
+    })),
 
   setNodes: (updater) =>
     set((state) => ({

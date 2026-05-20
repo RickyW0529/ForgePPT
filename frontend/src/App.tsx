@@ -3,6 +3,7 @@ import FlowCanvas from './components/FlowCanvas';
 import HeaderBar from './components/HeaderBar';
 import SidebarPanel from './components/SidebarPanel';
 import ToastContainer from './components/ToastContainer';
+import NodePalette from './components/NodePalette';
 import { useSSE } from './hooks/useSSE';
 
 function SSEConnector() {
@@ -17,6 +18,7 @@ export default function App() {
       <HeaderBar />
       <main className="flex-1 flex overflow-hidden">
         <ReactFlowProvider>
+          <NodePalette />
           <FlowCanvas />
         </ReactFlowProvider>
         <SidebarPanel />

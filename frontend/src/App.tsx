@@ -4,10 +4,10 @@ import HeaderBar from './components/HeaderBar';
 import SidebarPanel from './components/SidebarPanel';
 import ToastContainer from './components/ToastContainer';
 import NodePalette from './components/NodePalette';
-import { useSSE } from './hooks/useSSE';
+import { useWorkflowSSE } from './hooks/useWorkflowSSE';
 
 function SSEConnector() {
-  useSSE();
+  useWorkflowSSE();
   return null;
 }
 

@@ -88,6 +88,37 @@ Please generate the global theme configuration."""
     ]
 
 
+MERGE_SYSTEM_TEMPLATE = """You are a PPT merge composer. The user has uploaded multiple PPTs that need to be merged into a single presentation.
+
+Guidelines:
+- The first PPT is the primary; it determines slide size and base style.
+- Supplementary PPTs provide additional slides to insert, append, or rearrange.
+- Output a merge plan describing page order and any style rules.
+- For this MVP phase, return the plan as a concise JSON-like description.
+- Use one-based slide numbers when referring to slides."""
+
+
+def build_merge_messages(
+    user_prompt: str,
+    primary_slide_count: int,
+    supplementary_counts: list[int],
+) -> list[SystemMessage | HumanMessage]:
+    """Build message list for the AI merge composer."""
+    counts_str = ", ".join(str(c) for c in supplementary_counts)
+    human_content = f"""PPT summary:
+- Primary PPT: {primary_slide_count} slides (determines slide size and base style)
+- Supplementary PPTs: {counts_str} slides respectively
+
+User merge instruction:
+{user_prompt}
+
+Please output the merge plan."""
+    return [
+        SystemMessage(content=MERGE_SYSTEM_TEMPLATE),
+        HumanMessage(content=human_content),
+    ]
+
+
 PPT_EDITING_SYSTEM_TEMPLATE = """You are a PPT editing agent. You must use the available PPT editing tools to modify the presentation state.
 
 Available MVP tool:
@@ -97,7 +128,7 @@ Rules:
 - When the user asks to change colors or overall visual style, call ppt_apply_style.
 - Use one-based slide numbers from the user's request.
 - If the user names a common color, convert it to a #RRGGBB hex color.
-- For this MVP, use target=\"all_text\" for slide-level or presentation-level color changes.
+- For this MVP, use target="all_text" for slide-level or presentation-level color changes.
 - Do not claim the edit is complete unless you call a PPT editing tool."""
 
 

@@ -2,7 +2,7 @@ from typing import Any
 
 from prefect import flow
 
-from models.workflow_def import AgentNodeConfig, WorkflowDef, WorkflowNode
+from models.workflow_def import AgentNodeConfig, MergeNodeConfig, WorkflowDef, WorkflowNode
 from workflow.dag import topological_sort, validate_dag
 from workflow.executors import (
     run_agent_node,
@@ -58,8 +58,8 @@ async def execute_workflow(workflow_def: WorkflowDef, file_path: str) -> str:
 
         elif node.type == "merge":
             upstream_futures = [future_cache[p] for p in preds]
-            strategy = node.data.get("mergeStrategy", "last_write_wins")
-            future_cache[node_id] = run_merge_node.submit(node_id=node.id, inputs=upstream_futures, merge_strategy=strategy)
+            config = MergeNodeConfig.model_validate(node.data)
+            future_cache[node_id] = run_merge_node.submit(node_id=node.id, inputs=upstream_futures, config=config)
 
         elif node.type == "export":
             upstream = future_cache[preds[0]]

@@ -90,7 +90,7 @@ async def test_execute_parallel_branches():
                 position=CanvasPosition(x=0, y=0),
                 data=AgentNodeConfig(role="color_optimizer", prompt="dark blue").model_dump(),
             ),
-            WorkflowNode(id="merge", type="merge", position=CanvasPosition(x=0, y=0), data={"mergeStrategy": "last_write_wins"}),
+            WorkflowNode(id="merge", type="merge", position=CanvasPosition(x=0, y=0), data={}),
             WorkflowNode(id="export", type="export", position=CanvasPosition(x=0, y=0), data={}),
         ],
         edges=[

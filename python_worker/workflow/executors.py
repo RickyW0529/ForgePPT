@@ -1,11 +1,10 @@
 from prefect import task
 
 from models.ppt_state import PPTState
-from models.workflow_def import AgentNodeConfig
+from models.workflow_def import AgentNodeConfig, MergeNodeConfig
 from services.parser import parse_pptx
 from services.recomposer import recompose_pptx
-from workflow.agent_registry import execute_agent
-from workflow.merge import merge_states
+from workflow.agent_registry import execute_agent, execute_merge
 
 from workflow.sse_broadcaster import broadcast_sse
 
@@ -19,11 +18,11 @@ async def run_agent_node(node_id: str, ppt_state: PPTState, config: AgentNodeCon
     return result
 
 
-@task(name="{node_id}", timeout_seconds=30)
-def run_merge_node(node_id: str, inputs: list[PPTState], merge_strategy: str) -> PPTState:
+@task(name="{node_id}", retries=1, timeout_seconds=120)
+def run_merge_node(node_id: str, inputs: list[PPTState], config: MergeNodeConfig) -> PPTState:
     """Merge multiple branch outputs."""
     broadcast_sse(node_id, "started")
-    result = merge_states(inputs, strategy=merge_strategy)
+    result = execute_merge(inputs, config)
     broadcast_sse(node_id, "completed")
     return result
 

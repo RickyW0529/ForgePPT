@@ -32,6 +32,11 @@ class AgentNodeConfig(BaseModel):
     page_scope: list[int] = Field(default_factory=list, alias="pageScope")
 
 
+class MergeNodeConfig(BaseModel):
+    merge_strategy: Literal["ai_composer"] = "ai_composer"
+    prompt: str = ""
+
+
 class WorkflowDef(BaseModel):
     workflow_id: str
     nodes: list[WorkflowNode]

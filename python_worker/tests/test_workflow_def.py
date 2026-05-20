@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from models.workflow_def import WorkflowDef, WorkflowNode, WorkflowEdge, AgentNodeConfig, CanvasPosition
+from models.workflow_def import WorkflowDef, WorkflowNode, WorkflowEdge, AgentNodeConfig, CanvasPosition, MergeNodeConfig
 
 
 def test_workflow_def_predecessors():
@@ -64,3 +64,20 @@ def test_agent_node_config_temperature_out_of_range():
 def test_agent_node_config_temperature_low_boundary():
     with pytest.raises(ValidationError):
         AgentNodeConfig(role="x", temperature=-0.1)
+
+
+def test_merge_node_config_defaults():
+    config = MergeNodeConfig()
+    assert config.merge_strategy == "ai_composer"
+    assert config.prompt == ""
+
+
+def test_merge_node_config_custom_values():
+    config = MergeNodeConfig(merge_strategy="ai_composer", prompt="把辅PPT第2页插入主PPT第3页之后")
+    assert config.merge_strategy == "ai_composer"
+    assert config.prompt == "把辅PPT第2页插入主PPT第3页之后"
+
+
+def test_merge_node_config_invalid_strategy():
+    with pytest.raises(ValidationError):
+        MergeNodeConfig(merge_strategy="invalid")

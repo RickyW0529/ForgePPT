@@ -104,9 +104,18 @@ Rules:
 def build_ppt_editing_messages(
     instruction: str,
     slide_count: int,
+    slides: list | None = None,
+    scope: list[int] | None = None,
 ) -> list[SystemMessage | HumanMessage]:
     """Build message list for PPT editing tool-call agent."""
+    scope_section = f"Allowed slides: {scope}\n" if scope else ""
+    slides_section = ""
+    if slides:
+        for s in slides:
+            texts = [e.content for e in s.elements if e.element_type == "textbox"]
+            slides_section += f"\nSlide {s.page_num}:\n" + "\n".join(f"  - {t[:200]}" for t in texts)
     human_content = f"""Slide count: {slide_count}
+{scope_section}{slides_section}
 
 User instruction:
 {instruction}

@@ -90,7 +90,7 @@ def _build_tools(role: AgentRole) -> list[BaseTool]:
     return tools
 
 
-def execute_agent(ppt_state: PPTState, config: AgentNodeConfig) -> PPTState:
+def execute_agent(ppt_state: PPTState, config: AgentNodeConfig, edge_scope: list[int] | None = None) -> PPTState:
     """Execute an agent node against the given PPTState.
 
     Returns a new PPTState with modifications applied. Unmodified pages
@@ -102,19 +102,28 @@ def execute_agent(ppt_state: PPTState, config: AgentNodeConfig) -> PPTState:
 
     # For MVP, theme and color agents share the same implementation
     if config.role in ("theme_designer", "color_optimizer"):
-        return _execute_theme_agent(ppt_state, config, role)
+        return _execute_theme_agent(ppt_state, config, role, edge_scope=edge_scope)
 
     # Default: return state unchanged (placeholder for other roles)
     return ppt_state
 
 
-def _execute_theme_agent(ppt_state: PPTState, config: AgentNodeConfig, role: AgentRole) -> PPTState:
+def _execute_theme_agent(ppt_state: PPTState, config: AgentNodeConfig, role: AgentRole, edge_scope: list[int] | None = None) -> PPTState:
     """Execute theme/color agent using tool-calling."""
+    original_state = ppt_state
     state = copy.deepcopy(ppt_state)
+
+    allowed_pages = edge_scope if edge_scope is not None else (config.page_scope or [])
+    has_scope = bool(allowed_pages)
+
+    scope_slides = [s for s in state.slides if not has_scope or s.page_num in allowed_pages]
+
     llm = get_llm_client()
     messages = build_ppt_editing_messages(
         config.prompt or "Apply style changes",
         state.slide_count,
+        slides=scope_slides,
+        scope=allowed_pages if has_scope else None,
     )
 
     tools = _build_tools(role)
@@ -132,6 +141,15 @@ def _execute_theme_agent(ppt_state: PPTState, config: AgentNodeConfig, role: Age
         args = tool_call.get("args", {}) if isinstance(tool_call, dict) else getattr(tool_call, "args", {})
         if name == "ppt_apply_style":
             params = PPTApplyStyleInput.model_validate(args)
+            if has_scope and params.slide_number is not None and params.slide_number not in allowed_pages:
+                continue
             apply_style_to_ppt_state(state, params)
+
+    # Restore unmodified pages from the original state (hybrid mode C)
+    if has_scope:
+        original_map = {s.page_num: s for s in original_state.slides}
+        for i, slide in enumerate(state.slides):
+            if slide.page_num not in allowed_pages and slide.page_num in original_map:
+                state.slides[i] = copy.deepcopy(original_map[slide.page_num])
 
     return state

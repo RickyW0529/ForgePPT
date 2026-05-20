@@ -47,7 +47,14 @@ async def execute_workflow(workflow_def: WorkflowDef, file_path: str) -> str:
         elif node.type == "agent":
             upstream = future_cache[preds[0]]
             config = AgentNodeConfig.model_validate(node.data)
-            future_cache[node_id] = run_agent_node.submit(node_id=node.id, ppt_state=upstream, config=config)
+            edge_scope = None
+            for e in workflow_def.edges:
+                if e.target == node_id and e.data.get("pageScope"):
+                    edge_scope = e.data["pageScope"]
+                    break
+            future_cache[node_id] = run_agent_node.submit(
+                node_id=node.id, ppt_state=upstream, config=config, edge_scope=edge_scope
+            )
 
         elif node.type == "merge":
             upstream_futures = [future_cache[p] for p in preds]

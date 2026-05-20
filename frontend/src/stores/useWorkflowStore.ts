@@ -68,11 +68,25 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
     })),
 
   updateNodeData: (nodeId, data) =>
-    set((state) => ({
-      nodes: state.nodes.map((n) =>
+    set((state) => {
+      const node = state.nodes.find((n) => n.id === nodeId);
+      const nextNodes = state.nodes.map((n) =>
         n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n
-      ),
-    })),
+      );
+      let nextEdges = state.edges;
+      if (node?.type === 'page_allocator' && data.branches) {
+        const branchNames = Object.keys(data.branches).sort();
+        const outEdges = state.edges.filter((e) => e.source === nodeId);
+        nextEdges = state.edges.map((e) => {
+          if (e.source !== nodeId) return e;
+          const idx = outEdges.findIndex((oe) => oe.id === e.id);
+          const branchName = branchNames[idx];
+          const pages = branchName ? (data.branches as Record<string, number[]>)[branchName] : [];
+          return { ...e, data: { ...e.data, pageScope: pages } };
+        });
+      }
+      return { nodes: nextNodes, edges: nextEdges };
+    }),
 
   removeNode: (nodeId) =>
     set((state) => ({

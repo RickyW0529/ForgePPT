@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useWorkflowStore } from '@/stores/useWorkflowStore';
 import { useFileStore } from '@/stores/useFileStore';
 import { useUIStore } from '@/stores/useUIStore';
@@ -38,7 +38,7 @@ export default function ParamPanel({ nodeId }: ParamPanelProps) {
   };
 
   if (node.type === 'upload') {
-    return <UploadParamPanel data={data} />;
+    return <UploadParamPanel data={data} nodeId={nodeId} />;
   }
 
   if (node.type === 'agent') {
@@ -60,9 +60,28 @@ export default function ParamPanel({ nodeId }: ParamPanelProps) {
   return <p className="text-sm text-gray-500">未知节点类型</p>;
 }
 
-function UploadParamPanel({ data }: { data: WorkflowNodeData }) {
+function UploadParamPanel({ data, nodeId }: { data: WorkflowNodeData; nodeId: string }) {
   const fileName = useFileStore((s) => s.fileName);
   const isUploading = useFileStore((s) => s.isUploading);
+  const uploadError = useFileStore((s) => s.uploadError);
+  const uploadFile = useFileStore((s) => s.uploadFile);
+  const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const addToast = useUIStore((s) => s.addToast);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      await uploadFile(file);
+      updateNodeData(nodeId, { fileName: file.name });
+      addToast({ type: 'success', message: `${file.name} 上传成功` });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '上传失败';
+      addToast({ type: 'error', message: msg });
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
 
   return (
     <div className="space-y-4">
@@ -73,15 +92,38 @@ function UploadParamPanel({ data }: { data: WorkflowNodeData }) {
       <div className="text-xs text-gray-500">
         状态: <span className="font-medium capitalize">{data.status}</span>
       </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pptx"
+        onChange={handleFileChange}
+        className="hidden"
+      />
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        disabled={isUploading}
+        className="w-full flex items-center justify-center gap-1.5 px-3 py-2 bg-deepblue-600 text-white text-sm rounded hover:bg-deepblue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+      >
+        {isUploading ? (
+          <>
+            <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+            上传中...
+          </>
+        ) : (
+          <>
+            <Upload size={14} aria-hidden="true" />
+            选择 PPTX 文件
+          </>
+        )}
+      </button>
       {fileName && (
         <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded">
           ✓ {fileName}
         </div>
       )}
-      {isUploading && (
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Loader2 size={16} className="animate-spin" />
-          上传中...
+      {uploadError && (
+        <div className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded">
+          ✗ {uploadError}
         </div>
       )}
     </div>

@@ -21,6 +21,7 @@ class WorkflowEdge(BaseModel):
     id: str
     source: str
     target: str
+    data: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentNodeConfig(BaseModel):

@@ -1,10 +1,12 @@
 # python_worker/Dockerfile
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 WORKDIR /app
 
 # Install system dependencies for python-pptx and cairo
-RUN apt-get update && apt-get install -y \
+RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://deb.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list 2>/dev/null || true \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
     gcc \
     libxml2-dev \
     libxslt1-dev \

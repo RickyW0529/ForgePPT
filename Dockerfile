@@ -17,7 +17,9 @@ RUN touch src/main.rs && cargo build --release
 # Runtime stage
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y \
+RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g; s|http://deb.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources /etc/apt/sources.list 2>/dev/null || true \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*

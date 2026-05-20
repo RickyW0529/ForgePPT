@@ -37,5 +37,6 @@ export interface WorkflowDef {
     id: string;
     source: string;
     target: string;
+    data?: { pageScope?: number[] };
   }>;
 }

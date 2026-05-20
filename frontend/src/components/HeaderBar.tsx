@@ -50,6 +50,7 @@ export default function HeaderBar() {
         id: e.id,
         source: e.source,
         target: e.target,
+        data: e.data || {},
       })),
     };
 

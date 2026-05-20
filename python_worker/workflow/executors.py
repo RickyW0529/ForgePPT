@@ -11,10 +11,10 @@ from workflow.sse_broadcaster import broadcast_sse
 
 
 @task(name="{node_id}", retries=1, retry_delay_seconds=5, timeout_seconds=60)
-async def run_agent_node(node_id: str, ppt_state: PPTState, config: AgentNodeConfig) -> PPTState:
+async def run_agent_node(node_id: str, ppt_state: PPTState, config: AgentNodeConfig, edge_scope: list[int] | None = None) -> PPTState:
     """Execute a single Agent node."""
     broadcast_sse(node_id, "started")
-    result = execute_agent(ppt_state, config)
+    result = execute_agent(ppt_state, config, edge_scope=edge_scope)
     broadcast_sse(node_id, "completed")
     return result
 

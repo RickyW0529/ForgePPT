@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tempfile
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -18,11 +17,10 @@ from agent_platform.memory.stores.sqlite_store import SQLiteDocumentStore
 
 
 @pytest.fixture
-def sqlite_store():
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
-        path = f.name
-    store = SQLiteDocumentStore(db_path=path)
-    yield store
+def sqlite_store(tmp_path):
+    path = tmp_path / "memory.db"
+    store = SQLiteDocumentStore(db_path=str(path))
+    return store
 
 
 @pytest.mark.asyncio

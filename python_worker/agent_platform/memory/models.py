@@ -68,6 +68,14 @@ class MemoryStats(BaseModel):
 
 
 class BaseMemory(Protocol):
+    """Protocol for memory *type* implementations (WorkingMemory, EpisodicMemory, etc.).
+
+    This is **not** a storage backend interface — stores (SQLiteDocumentStore,
+    QdrantVectorStore) expose lower-level primitives (insert, get, query).
+    Higher-level memory types satisfy this protocol and orchestrate one or more
+    stores to provide unified store/recall/forget semantics.
+    """
+
     type: str
 
     async def store(self, item: MemoryItem) -> str:

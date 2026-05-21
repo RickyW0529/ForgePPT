@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import sqlite3
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -66,14 +66,14 @@ class SQLiteDocumentStore:
             if result.get(key) is not None:
                 try:
                     result[key] = json.loads(result[key])
-                except (json.JSONDecodeError, TypeError):
-                    pass
+                except (json.JSONDecodeError, TypeError) as exc:
+                    raise ValueError(f"Failed to deserialize JSON field '{key}': {exc}") from exc
         for key in ("created_at", "accessed_at", "expires_at"):
             if result.get(key) is not None:
                 try:
                     result[key] = datetime.fromisoformat(result[key])
-                except (ValueError, TypeError):
-                    pass
+                except (ValueError, TypeError) as exc:
+                    raise ValueError(f"Failed to deserialize datetime field '{key}': {exc}") from exc
         return result
 
     async def insert(self, doc: dict, table: str = "episodic_items") -> str:
@@ -144,17 +144,20 @@ class SQLiteDocumentStore:
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         if order_by:
-            # Basic sanitization: only allow column names and ASC/DESC
             ob = order_by.strip()
             ob_upper = ob.upper()
             if ob_upper.endswith(" DESC"):
                 col = ob[:-5].strip()
-                sql += f" ORDER BY {col} DESC"
+                direction = "DESC"
             elif ob_upper.endswith(" ASC"):
                 col = ob[:-4].strip()
-                sql += f" ORDER BY {col} ASC"
+                direction = "ASC"
             else:
-                sql += f" ORDER BY {ob}"
+                col = ob
+                direction = "ASC"
+            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col):
+                raise ValueError(f"Invalid order_by column: {col}")
+            sql += f" ORDER BY {col} {direction}"
         if limit is not None:
             sql += " LIMIT ?"
             params.append(limit)

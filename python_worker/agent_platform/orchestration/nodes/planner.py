@@ -11,6 +11,7 @@ from agent_platform.orchestration.plans import AgentPlan
 from agent_platform.orchestration.state import AgentGraphState
 from agent_platform.providers.models import ChatMessage, LLMRequest, RequestMetadata, RequestPurpose
 from agent_platform.providers.router import ProviderRouter
+from models.workflow_def import AgentNodeConfig
 
 # MVP: generous per-plan budget until Module 7 wires in real accounting.
 _DEFAULT_PLAN_BUDGET_USD = 10.0
@@ -46,6 +47,7 @@ def make_planner_node(router: ProviderRouter):
         iteration = state.get("plan_iteration", 0) + 1
         ctx: PlannerContext = state["planner_context"]
         config = state["config"]
+        assert isinstance(config, AgentNodeConfig)
 
         messages = _build_messages(ctx, state.get("plan_failures", []))
 

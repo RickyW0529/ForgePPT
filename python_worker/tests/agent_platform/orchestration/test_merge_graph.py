@@ -58,8 +58,6 @@ def _minimal_ppt(slide_count: int = 2) -> PPTState:
 
 def _modify_slide(ppt: PPTState, page_num: int) -> PPTState:
     """Return a copy of ppt with an extra text box added to the given page."""
-    import copy
-
     new_ppt = copy.deepcopy(ppt)
     slide = new_ppt.slides[page_num - 1]
     slide.elements.append(
@@ -208,7 +206,7 @@ class TestValidationFailureRetry:
 class TestMaxReplanExhausted:
     @pytest.mark.asyncio
     async def test_abort_after_max_replan(self):
-        """Router always returns invalid plan; repair aborts after MAX_REPLAN."""
+        """Router always returns invalid plan; repair aborts after max_replan."""
         base = _minimal_ppt(2)
         branch1 = _modify_slide(base, 2)
 

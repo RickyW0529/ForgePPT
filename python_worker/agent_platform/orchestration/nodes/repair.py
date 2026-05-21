@@ -16,7 +16,7 @@ def repair_node(state: BaseGraphState) -> dict[str, Any]:
     Otherwise we build an abort trace and short-circuit to ``assemble``.
     """
     iteration = state.get("plan_iteration", 0)
-    max_replan = getattr(state.get("config"), "max_replan", 2)
+    max_replan = getattr(state["config"], "max_replan", 2)
     if iteration >= max_replan:
         node_id = getattr(state["config"], "role", "merge")
         return {

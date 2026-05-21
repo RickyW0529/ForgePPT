@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from typing import Any, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from agent_platform.providers.models import TokenUsage
 
 
 class TargetSelector(BaseModel):
@@ -88,8 +91,11 @@ class AgentTrace(BaseModel):
     """Observability record for a single agent subgraph run."""
 
     model_config = ConfigDict(extra="forbid")
+    trace_id: str = Field(default_factory=lambda: str(uuid4()))
     node_id: str = ""
     plan: AgentPlan | MergePlan | None = None
     step_results: list[StepResult] = Field(default_factory=list)
     plan_failures: list[PlanFailure] = Field(default_factory=list)
     status: Literal["success", "partial", "failed"] = "failed"
+    tokens: TokenUsage | None = None
+    latency_ms: int | None = None

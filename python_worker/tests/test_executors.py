@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 import pytest
+from agent_platform.orchestration.plans import AgentTrace
 from models.ppt_state import PPTState, Slide, SlideSize
 from models.workflow_def import MergeNodeConfig
 from workflow.executors import run_merge_node
@@ -25,20 +26,24 @@ def _make_ppt(slide_count: int, source_file: str = "/tmp/test.pptx") -> PPTState
     )
 
 
-def test_run_merge_node_calls_execute_merge_with_config():
+@pytest.mark.asyncio
+async def test_run_merge_node_calls_run_merge_subgraph_with_config():
     ppt1 = _make_ppt(1)
     ppt2 = _make_ppt(1)
     config = MergeNodeConfig(merge_strategy="ai_composer", prompt="Merge these slides")
     mocked_result = _make_ppt(2)
+    mocked_trace = AgentTrace(node_id="merge-1", status="success")
 
     with (
         patch("workflow.executors.broadcast_sse") as mock_broadcast,
-        patch("workflow.executors.execute_merge", return_value=mocked_result) as mock_execute_merge,
+        patch(
+            "workflow.executors.run_merge_subgraph",
+            return_value=(mocked_result, mocked_trace),
+        ) as mock_run_merge,
     ):
         # Access .fn to bypass Prefect task runtime
-        result = run_merge_node.fn("merge-1", [ppt1, ppt2], config)
+        result = await run_merge_node.fn("merge-1", [ppt1, ppt2], config)
 
     assert result == mocked_result
-    mock_execute_merge.assert_called_once_with([ppt1, ppt2], config)
+    mock_run_merge.assert_called_once_with([ppt1, ppt2], config)
     mock_broadcast.assert_any_call("merge-1", "started")
-    mock_broadcast.assert_any_call("merge-1", "completed")

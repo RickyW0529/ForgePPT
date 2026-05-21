@@ -1,9 +1,14 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
+from agent_platform.orchestration.plans import AgentTrace
 from models.ppt_state import PPTState, Slide, TextBox, SlideSize, Position, Size, TextStyle
 from models.workflow_def import WorkflowDef, WorkflowNode, WorkflowEdge, CanvasPosition, AgentNodeConfig
 from workflow.orchestrator import execute_workflow
+
+
+def _agent_trace() -> AgentTrace:
+    return AgentTrace(status="success")
 
 
 def _make_simple_state(content: str = "hello") -> PPTState:
@@ -51,13 +56,13 @@ async def test_execute_simple_linear_workflow():
         ],
     )
 
+    state = _make_simple_state()
     with patch("workflow.executors.parse_pptx") as mock_parse, \
          patch("workflow.executors.recompose_pptx") as mock_recompose, \
-         patch("workflow.executors.execute_agent") as mock_agent:
+         patch("workflow.executors.run_agent_subgraph", return_value=(state, _agent_trace())) as mock_agent:
 
-        mock_parse.return_value = _make_simple_state()
+        mock_parse.return_value = state
         mock_recompose.return_value = "/tmp/output.pptx"
-        mock_agent.return_value = _make_simple_state()
 
         result = await execute_workflow(wf, "/tmp/test.pptx")
         assert result == "/tmp/forgeppt_output__tmp_test.pptx"
@@ -81,14 +86,13 @@ async def test_execute_single_upload_to_merge():
         ],
     )
 
+    state = _make_simple_state()
     with patch("workflow.executors.parse_pptx") as mock_parse, \
          patch("workflow.executors.recompose_pptx") as mock_recompose, \
-         patch("workflow.executors.execute_merge") as mock_merge:
+         patch("workflow.executors.run_merge_subgraph", return_value=(state, _agent_trace())) as mock_merge:
 
-        state = _make_simple_state()
         mock_parse.return_value = state
         mock_recompose.return_value = "/tmp/output.pptx"
-        mock_merge.return_value = state
 
         result = await execute_workflow(wf, "/tmp/test.pptx")
         assert result == "/tmp/forgeppt_output__tmp_test.pptx"
@@ -135,18 +139,19 @@ async def test_execute_parallel_branches():
         ],
     )
 
+    state = _make_simple_state()
     with patch("workflow.executors.parse_pptx") as mock_parse, \
          patch("workflow.executors.recompose_pptx") as mock_recompose, \
-         patch("workflow.executors.execute_agent") as mock_agent:
+         patch("workflow.executors.run_agent_subgraph", return_value=(state, _agent_trace())) as mock_agent, \
+         patch("workflow.executors.run_merge_subgraph", return_value=(state, _agent_trace())) as mock_merge:
 
-        state = _make_simple_state()
         mock_parse.return_value = state
         mock_recompose.return_value = "/tmp/output.pptx"
-        mock_agent.return_value = state
 
         result = await execute_workflow(wf, "/tmp/test.pptx")
         assert result == "/tmp/forgeppt_output__tmp_test.pptx"
         assert mock_agent.call_count == 2
+        mock_merge.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -182,17 +187,16 @@ async def test_execute_multi_upload_merge():
         ],
     )
 
+    merged_state = _make_simple_state()
     with patch("workflow.executors.parse_pptx") as mock_parse, \
          patch("workflow.executors.recompose_pptx") as mock_recompose, \
-         patch("workflow.executors.execute_agent") as mock_agent, \
-         patch("workflow.executors.execute_merge") as mock_merge:
+         patch("workflow.executors.run_agent_subgraph", return_value=(_make_simple_state(), _agent_trace())) as mock_agent, \
+         patch("workflow.executors.run_merge_subgraph", return_value=(merged_state, _agent_trace())) as mock_merge:
 
         state1 = _make_simple_state("main")
         state2 = _make_simple_state("extra")
         mock_parse.side_effect = [state1, state2]
         mock_recompose.return_value = "/tmp/output.pptx"
-        mock_agent.return_value = _make_simple_state()
-        mock_merge.return_value = _make_simple_state()
 
         result = await execute_workflow(wf, "/tmp/fallback.pptx")
         assert result == "/tmp/forgeppt_output__tmp_test.pptx"

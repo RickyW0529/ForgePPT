@@ -112,11 +112,10 @@ def _make_registry(*tools: Any) -> ToolRegistry:
     return reg
 
 
-def _mock_router(return_plan: AgentPlan | None = None) -> ProviderRouter:
-    router = AsyncMock(spec=ProviderRouter)
-    response = LLMResponse(
+def _make_llm_response(parsed: AgentPlan | None = None) -> LLMResponse:
+    return LLMResponse(
         text="",
-        parsed=return_plan,
+        parsed=parsed,
         tokens=TokenUsage(),
         latency_ms=100,
         provider="openai",
@@ -124,7 +123,11 @@ def _mock_router(return_plan: AgentPlan | None = None) -> ProviderRouter:
         cost_usd=0.001,
         finish_reason="stop",
     )
-    router.complete.return_value = response
+
+
+def _mock_router(return_plan: AgentPlan | None = None) -> ProviderRouter:
+    router = AsyncMock(spec=ProviderRouter)
+    router.complete.return_value = _make_llm_response(return_plan)
     return router
 
 
@@ -211,26 +214,8 @@ class TestValidationFailureRetry:
 
         router = AsyncMock(spec=ProviderRouter)
         router.complete.side_effect = [
-            LLMResponse(
-                text="",
-                parsed=invalid_plan,
-                tokens=TokenUsage(),
-                latency_ms=100,
-                provider="openai",
-                model="gpt-4o-mini",
-                cost_usd=0.001,
-                finish_reason="stop",
-            ),
-            LLMResponse(
-                text="",
-                parsed=valid_plan,
-                tokens=TokenUsage(),
-                latency_ms=100,
-                provider="openai",
-                model="gpt-4o-mini",
-                cost_usd=0.001,
-                finish_reason="stop",
-            ),
+            _make_llm_response(invalid_plan),
+            _make_llm_response(valid_plan),
         ]
 
         graph = build_agent_subgraph(reg, router)
@@ -271,6 +256,9 @@ class TestMaxReplanExhausted:
         assert trace is not None
         assert trace.status == "failed"
         assert final_state["plan_iteration"] == 2  # MAX_REPLAN
+        assert len(trace.plan_failures) == 2
+        assert trace.plan_failures[0].failure_type == "tool_unknown"
+        assert trace.plan_failures[1].failure_type == "tool_unknown"
 
 
 # ---------------------------------------------------------------------------
@@ -314,14 +302,14 @@ class TestRunnerEntryPoint:
         ppt = _minimal_ppt()
         config = AgentNodeConfig(role="text_refiner", prompt="Make it better")
 
-        # Use a real builtin tool in the plan so solver can execute it
+        # Use a mock tool injected into BUILTIN_TOOLS so no real tool is executed
         plan = AgentPlan(
-            summary="apply style",
+            summary="add",
             steps=[
                 PlanStep(
                     step_id="s1",
-                    tool="ppt_apply_style",
-                    params={"font_color": "#00FF00"},
+                    tool="mock_add",
+                    params={"value": 7},
                 )
             ],
         )
@@ -329,6 +317,9 @@ class TestRunnerEntryPoint:
 
         with patch(
             "agent_platform.orchestration.runner.get_router", return_value=router
+        ), patch(
+            "agent_platform.orchestration.runner.BUILTIN_TOOLS",
+            [_MockAddTool()],
         ):
             working, trace = await run_agent_subgraph(ppt, config)
 
@@ -337,3 +328,4 @@ class TestRunnerEntryPoint:
         assert trace.status == "success"
         assert len(trace.step_results) == 1
         assert trace.step_results[0].status == "ok"
+        assert working.source_file == "/tmp/test_v7.pptx"

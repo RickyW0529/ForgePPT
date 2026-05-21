@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from agent_platform.orchestration.plans import AgentTrace
-from agent_platform.orchestration.state import AgentGraphState
+from agent_platform.orchestration.state import BaseGraphState
 
 
-def assemble_node(state: AgentGraphState) -> dict[str, Any]:
+def assemble_node(state: BaseGraphState) -> dict[str, Any]:
     """Build the final trace from execution state.
 
     If ``repair`` already set an abort trace, we pass through.

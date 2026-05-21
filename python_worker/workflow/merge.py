@@ -5,7 +5,11 @@ from models.ppt_state import PPTState
 
 
 def detect_modified_pages(base: PPTState, modified: PPTState) -> list[int]:
-    """Return list of 1-based page numbers that differ between base and modified."""
+    """Return list of 1-based page numbers that differ between base and modified.
+
+    Only compares overlapping slide ranges. Slides beyond the length of the
+    shorter deck are not reported.
+    """
     changed = []
     for i, (base_slide, mod_slide) in enumerate(zip(base.slides, modified.slides)):
         if base_slide.model_dump_json() != mod_slide.model_dump_json():

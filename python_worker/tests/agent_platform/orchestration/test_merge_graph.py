@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
@@ -282,8 +283,6 @@ class TestRunnerEntryPoint:
 class TestDiffPages:
     def test_extra_slides_beyond_base_are_reported(self):
         """diff_pages_node reports slides in branches that exceed base length."""
-        import copy
-
         from agent_platform.orchestration.nodes.diff_pages import diff_pages_node
 
         base = _minimal_ppt(2)

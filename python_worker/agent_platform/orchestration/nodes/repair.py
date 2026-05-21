@@ -5,12 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from agent_platform.orchestration.plans import AgentTrace
-from agent_platform.orchestration.state import AgentGraphState
-
-MAX_REPLAN = 2
+from agent_platform.orchestration.state import BaseGraphState
 
 
-def repair_node(state: AgentGraphState) -> dict[str, Any]:
+def repair_node(state: BaseGraphState) -> dict[str, Any]:
     """Handle a failed plan validation.
 
     If the planner has not yet exhausted its budget of replans, we loop
@@ -18,7 +16,7 @@ def repair_node(state: AgentGraphState) -> dict[str, Any]:
     Otherwise we build an abort trace and short-circuit to ``assemble``.
     """
     iteration = state.get("plan_iteration", 0)
-    max_replan = getattr(state.get("config"), "max_replan", MAX_REPLAN)
+    max_replan = getattr(state.get("config"), "max_replan", 2)
     if iteration >= max_replan:
         node_id = getattr(state["config"], "role", "merge")
         return {
@@ -32,7 +30,7 @@ def repair_node(state: AgentGraphState) -> dict[str, Any]:
     return {}
 
 
-def route_repair(state: AgentGraphState) -> str:
+def route_repair(state: BaseGraphState) -> str:
     """Conditional edge from repair node."""
     if state.get("trace") is not None:
         return "assemble"

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from agent_platform.orchestration.nodes.repair import MAX_REPLAN, repair_node, route_repair
+from agent_platform.orchestration.nodes.repair import repair_node, route_repair
 from agent_platform.orchestration.plans import AgentPlan, AgentTrace, PlanFailure
 from agent_platform.orchestration.state import AgentGraphState
 from models.ppt_state import PPTState, Slide, SlideSize
@@ -64,7 +64,7 @@ class TestRepairNode:
             PlanFailure(iteration=2, failure_type="tool_unknown", detail="missing")
         ]
         plan = AgentPlan(summary="test", steps=[])
-        state = _minimal_state(plan_iteration=MAX_REPLAN, plan_failures=failures, current_plan=plan)
+        state = _minimal_state(plan_iteration=2, plan_failures=failures, current_plan=plan)
         result = repair_node(state)
         assert "trace" in result
         trace = result["trace"]
@@ -74,7 +74,7 @@ class TestRepairNode:
         assert trace.plan_failures == failures
 
     def test_aborts_when_over_budget(self):
-        state = _minimal_state(plan_iteration=MAX_REPLAN + 1)
+        state = _minimal_state(plan_iteration=3)
         result = repair_node(state)
         assert "trace" in result
         assert result["trace"].status == "failed"

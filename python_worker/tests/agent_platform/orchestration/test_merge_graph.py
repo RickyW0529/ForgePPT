@@ -265,3 +265,175 @@ class TestRunnerEntryPoint:
         assert len(trace.step_results) == 1
         assert trace.step_results[0].status == "ok"
         assert len(working.slides[1].elements) == 1
+
+    @pytest.mark.asyncio
+    async def test_empty_inputs_raises(self):
+        """run_merge_subgraph raises ValueError when inputs is empty."""
+        config = MergeNodeConfig(prompt="Merge it")
+        with pytest.raises(ValueError, match="requires at least one input"):
+            await run_merge_subgraph([], config)
+
+
+# ---------------------------------------------------------------------------
+# Test 5: Diff pages reports extra slides
+# ---------------------------------------------------------------------------
+
+
+class TestDiffPages:
+    def test_extra_slides_beyond_base_are_reported(self):
+        """diff_pages_node reports slides in branches that exceed base length."""
+        import copy
+
+        from agent_platform.orchestration.nodes.diff_pages import diff_pages_node
+
+        base = _minimal_ppt(2)
+        # Build branch from base so slide_ids match for existing slides
+        branch = copy.deepcopy(base)
+        branch.slides.append(
+            Slide(
+                page_num=3,
+                size=base.slides[0].size,
+                elements=[
+                    TextBox(
+                        content="extra-slide",
+                        position=Position(x_emu=0, y_emu=0, x_px=0, y_px=0),
+                        size=Size(width_emu=1_000_000, height_emu=500_000, width_px=100, height_px=50),
+                        style=TextStyle(),
+                    )
+                ],
+            )
+        )
+        branch.slide_count = 3
+
+        state: MergeGraphState = {
+            "inputs": [base, branch],
+            "config": MergeNodeConfig(),
+            "prompt": "",
+            "current_plan": None,
+            "plan_iteration": 0,
+            "plan_failures": [],
+            "step_results": [],
+            "last_validation_ok": True,
+            "branch_diffs": [],
+            "working_ppt_state": base,
+            "trace": None,
+        }
+        result = diff_pages_node(state)
+        assert result["branch_diffs"] == [[3]]
+
+
+# ---------------------------------------------------------------------------
+# Test 6: Custom max_replan respected
+# ---------------------------------------------------------------------------
+
+
+class TestCustomMaxReplan:
+    @pytest.mark.asyncio
+    async def test_custom_max_replan_exhausted(self):
+        """A custom max_replan of 1 aborts after a single failure."""
+        base = _minimal_ppt(2)
+        branch1 = _modify_slide(base, 2)
+
+        bad_plan = MergePlan(
+            summary="bad",
+            slides=[
+                MergeSlideRef(source_branch=0, source_page=1, target_page=1),
+                MergeSlideRef(source_branch=0, source_page=1, target_page=1),
+            ],
+        )
+        router = _mock_router(bad_plan)
+        graph = build_merge_subgraph(router)
+
+        state = _make_initial_state(inputs=[base, branch1])
+        state["config"] = MergeNodeConfig(prompt="Merge", max_replan=1)
+
+        final_state = await graph.ainvoke(state)
+        trace = final_state["trace"]
+        assert trace is not None
+        assert trace.status == "failed"
+        assert final_state["plan_iteration"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Test 7: Markdown fence stripping
+# ---------------------------------------------------------------------------
+
+
+class TestMarkdownFenceStripping:
+    @pytest.mark.asyncio
+    async def test_merge_planner_strips_fences(self):
+        """merge_planner_node strips markdown fences before JSON parsing."""
+        from agent_platform.orchestration.nodes.merge_planner import make_merge_planner_node
+
+        plan = MergePlan(summary="test", slides=[MergeSlideRef(source_branch=0, source_page=1, target_page=1)])
+        fenced_text = "```json\n" + plan.model_dump_json() + "\n```"
+
+        router = AsyncMock(spec=ProviderRouter)
+        router.complete.return_value = LLMResponse(
+            text=fenced_text,
+            parsed=None,
+            tokens=TokenUsage(),
+            latency_ms=100,
+            provider="openai",
+            model="gpt-4o-mini",
+            cost_usd=0.001,
+            finish_reason="stop",
+        )
+
+        node = make_merge_planner_node(router)
+        state: MergeGraphState = {
+            "inputs": [_minimal_ppt(1)],
+            "config": MergeNodeConfig(),
+            "prompt": "",
+            "current_plan": None,
+            "plan_iteration": 0,
+            "plan_failures": [],
+            "step_results": [],
+            "last_validation_ok": True,
+            "branch_diffs": [],
+            "working_ppt_state": _minimal_ppt(1),
+            "trace": None,
+        }
+        result = await node(state)
+        assert result["current_plan"] is not None
+        assert result["current_plan"].summary == "test"
+
+
+# ---------------------------------------------------------------------------
+# Test 8: Merge validator uses model_copy
+# ---------------------------------------------------------------------------
+
+
+class TestMergeValidatorCopy:
+    def test_validator_sets_iteration_via_model_copy(self):
+        """merge_validator_node sets iteration without mutating original PlanFailure."""
+        from agent_platform.orchestration.nodes.merge_validator import make_merge_validator_node
+
+        base = _minimal_ppt(2)
+        branch = _minimal_ppt(3)
+
+        plan = MergePlan(
+            summary="bad",
+            slides=[
+                MergeSlideRef(source_branch=99, source_page=1, target_page=1),
+            ],
+        )
+        state: MergeGraphState = {
+            "inputs": [base, branch],
+            "config": MergeNodeConfig(),
+            "prompt": "",
+            "current_plan": plan,
+            "plan_iteration": 3,
+            "plan_failures": [],
+            "step_results": [],
+            "last_validation_ok": True,
+            "branch_diffs": [],
+            "working_ppt_state": base,
+            "trace": None,
+        }
+
+        node = make_merge_validator_node()
+        result = node(state)
+        assert result["last_validation_ok"] is False
+        assert len(result["plan_failures"]) == 1
+        assert result["plan_failures"][0].iteration == 3

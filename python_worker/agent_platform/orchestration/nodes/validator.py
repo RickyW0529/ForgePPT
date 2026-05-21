@@ -150,8 +150,8 @@ def make_validator_node(registry: ToolRegistry):
             allowed_pages=state.get("allowed_pages"),
         )
         # Tag each failure with the current iteration
-        for f in failures:
-            object.__setattr__(f, "iteration", state.get("plan_iteration", 0))
+        iteration = state.get("plan_iteration", 0)
+        failures = [f.model_copy(update={"iteration": iteration}) for f in failures]
 
         return {
             "last_validation_ok": ok,

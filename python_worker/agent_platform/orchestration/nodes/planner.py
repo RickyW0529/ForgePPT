@@ -71,7 +71,13 @@ def make_planner_node(router: ProviderRouter):
         else:
             # Fallback: try to parse from text (defensive).
             try:
-                plan = AgentPlan.model_validate_json(response.text)
+                text = response.text
+                # Strip markdown fences if present
+                if text.startswith("```"):
+                    text = text.split("\n", 1)[1] if "\n" in text else ""
+                if text.endswith("```"):
+                    text = text.rsplit("\n", 1)[0] if "\n" in text else ""
+                plan = AgentPlan.model_validate_json(text)
             except Exception:
                 pass
 

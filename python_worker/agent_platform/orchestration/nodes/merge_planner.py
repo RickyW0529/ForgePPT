@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from agent_platform.orchestration.plans import MergePlan
@@ -78,10 +79,9 @@ def make_merge_planner_node(router: ProviderRouter):
             try:
                 text = response.text
                 # Strip markdown fences if present
-                if text.startswith("```"):
-                    text = text.split("\n", 1)[1] if "\n" in text else ""
-                if text.endswith("```"):
-                    text = text.rsplit("\n", 1)[0] if "\n" in text else ""
+                m = re.search(r"```(?:json)?\s*\n(.*?)\n?```", text, re.DOTALL)
+                if m:
+                    text = m.group(1)
                 plan = MergePlan.model_validate_json(text)
             except Exception:
                 pass

@@ -12,42 +12,44 @@ import aiosqlite
 class SQLiteDocumentStore:
     """Async SQLite document store for episodic memory items."""
 
-    _SCHEMA = """
-    CREATE TABLE IF NOT EXISTS episodic_items (
-        item_id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL,
-        workflow_id TEXT,
-        type TEXT NOT NULL,
-        content TEXT NOT NULL,
-        payload TEXT,
-        modality TEXT,
-        embedding TEXT,
-        embedding_model TEXT,
-        tags TEXT,
-        importance REAL,
-        confidence REAL,
-        created_at TEXT,
-        accessed_at TEXT,
-        expires_at TEXT,
-        source TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_episodic_user ON episodic_items(user_id);
-    CREATE INDEX IF NOT EXISTS idx_episodic_type ON episodic_items(type);
-    CREATE INDEX IF NOT EXISTS idx_episodic_workflow ON episodic_items(workflow_id);
-    """
+    @staticmethod
+    def _schema(table: str) -> str:
+        return f"""
+        CREATE TABLE IF NOT EXISTS {table} (
+            item_id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            workflow_id TEXT,
+            type TEXT NOT NULL,
+            content TEXT NOT NULL,
+            payload TEXT,
+            modality TEXT,
+            embedding TEXT,
+            embedding_model TEXT,
+            tags TEXT,
+            importance REAL,
+            confidence REAL,
+            created_at TEXT,
+            accessed_at TEXT,
+            expires_at TEXT,
+            source TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_{table}_user ON {table}(user_id);
+        CREATE INDEX IF NOT EXISTS idx_{table}_type ON {table}(type);
+        CREATE INDEX IF NOT EXISTS idx_{table}_workflow ON {table}(workflow_id);
+        """
 
     def __init__(self, db_path: str = "data/memory.db"):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._initialized = False
+        self._tables_created: set[str] = set()
 
-    async def _ensure_table(self) -> None:
-        if self._initialized:
+    async def _ensure_table(self, table: str) -> None:
+        if table in self._tables_created:
             return
         async with aiosqlite.connect(self.db_path) as db:
-            await db.executescript(self._SCHEMA)
+            await db.executescript(self._schema(table))
             await db.commit()
-        self._initialized = True
+        self._tables_created.add(table)
 
     @staticmethod
     def _serialize(value: Any) -> Any:
@@ -74,8 +76,8 @@ class SQLiteDocumentStore:
                     pass
         return result
 
-    async def insert(self, doc: dict) -> str:
-        await self._ensure_table()
+    async def insert(self, doc: dict, table: str = "episodic_items") -> str:
+        await self._ensure_table(table)
         item_id = doc.get("item_id")
         if not item_id:
             raise ValueError("doc must contain 'item_id'")
@@ -104,18 +106,18 @@ class SQLiteDocumentStore:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             await db.execute(
-                f"INSERT OR REPLACE INTO episodic_items ({', '.join(columns)}) VALUES ({placeholders})",
+                f"INSERT OR REPLACE INTO {table} ({', '.join(columns)}) VALUES ({placeholders})",
                 values,
             )
             await db.commit()
         return str(item_id)
 
-    async def get(self, item_id: str) -> dict | None:
-        await self._ensure_table()
+    async def get(self, item_id: str, table: str = "episodic_items") -> dict | None:
+        await self._ensure_table(table)
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute(
-                "SELECT * FROM episodic_items WHERE item_id = ?", (item_id,)
+                f"SELECT * FROM {table} WHERE item_id = ?", (item_id,)
             ) as cursor:
                 row = await cursor.fetchone()
                 if row is None:
@@ -124,11 +126,12 @@ class SQLiteDocumentStore:
 
     async def query(
         self,
+        table: str = "episodic_items",
         where: dict | None = None,
         order_by: str | None = None,
         limit: int | None = None,
     ) -> list[dict]:
-        await self._ensure_table()
+        await self._ensure_table(table)
         where = where or {}
         clauses: list[str] = []
         params: list[Any] = []
@@ -137,7 +140,7 @@ class SQLiteDocumentStore:
             clauses.append(f"{key} = ?")
             params.append(self._serialize(value))
 
-        sql = "SELECT * FROM episodic_items"
+        sql = f"SELECT * FROM {table}"
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
         if order_by:
@@ -162,15 +165,27 @@ class SQLiteDocumentStore:
                 rows = await cursor.fetchall()
                 return [self._deserialize(dict(r)) for r in rows]
 
-    async def delete(self, item_id: str) -> None:
-        await self._ensure_table()
+    async def delete(self, item_id: str, table: str = "episodic_items") -> None:
+        await self._ensure_table(table)
         async with aiosqlite.connect(self.db_path) as db:
-            await db.execute("DELETE FROM episodic_items WHERE item_id = ?", (item_id,))
+            await db.execute(f"DELETE FROM {table} WHERE item_id = ?", (item_id,))
             await db.commit()
 
-    async def count(self) -> int:
-        await self._ensure_table()
+    async def count(self, table: str = "episodic_items") -> int:
+        await self._ensure_table(table)
         async with aiosqlite.connect(self.db_path) as db:
-            async with db.execute("SELECT COUNT(*) FROM episodic_items") as cursor:
+            async with db.execute(f"SELECT COUNT(*) FROM {table}") as cursor:
                 row = await cursor.fetchone()
                 return row[0] if row else 0
+
+    async def full_text_search(self, table: str, q: str) -> list[dict]:
+        """MVP fallback using LIKE; FTS5 in Phase 2."""
+        await self._ensure_table(table)
+        pattern = f"%{q}%"
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                f"SELECT * FROM {table} WHERE content LIKE ?", (pattern,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return [self._deserialize(dict(r)) for r in rows]

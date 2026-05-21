@@ -129,6 +129,82 @@ async def test_sqlite_get_missing_returns_none(sqlite_store):
     assert await sqlite_store.get("nonexistent") is None
 
 
+@pytest.mark.asyncio
+async def test_sqlite_custom_table(sqlite_store):
+    doc = {
+        "item_id": "custom-1",
+        "user_id": "default",
+        "type": "semantic",
+        "content": "Custom table content",
+        "source": "test",
+        "created_at": datetime.now(timezone.utc),
+        "accessed_at": datetime.now(timezone.utc),
+    }
+    item_id = await sqlite_store.insert(doc, table="semantic_items")
+    assert item_id == "custom-1"
+
+    retrieved = await sqlite_store.get("custom-1", table="semantic_items")
+    assert retrieved is not None
+    assert retrieved["content"] == "Custom table content"
+
+    count_default = await sqlite_store.count(table="episodic_items")
+    count_custom = await sqlite_store.count(table="semantic_items")
+    assert count_default == 0
+    assert count_custom == 1
+
+    await sqlite_store.delete("custom-1", table="semantic_items")
+    assert await sqlite_store.count(table="semantic_items") == 0
+
+
+@pytest.mark.asyncio
+async def test_sqlite_full_text_search(sqlite_store):
+    docs = [
+        {
+            "item_id": "ft-1",
+            "user_id": "default",
+            "type": "episodic",
+            "content": "The quick brown fox",
+            "source": "test",
+            "created_at": datetime.now(timezone.utc),
+            "accessed_at": datetime.now(timezone.utc),
+        },
+        {
+            "item_id": "ft-2",
+            "user_id": "default",
+            "type": "episodic",
+            "content": "Lazy dog sleeping",
+            "source": "test",
+            "created_at": datetime.now(timezone.utc),
+            "accessed_at": datetime.now(timezone.utc),
+        },
+        {
+            "item_id": "ft-3",
+            "user_id": "default",
+            "type": "episodic",
+            "content": "Another topic entirely",
+            "source": "test",
+            "created_at": datetime.now(timezone.utc),
+            "accessed_at": datetime.now(timezone.utc),
+        },
+    ]
+    for doc in docs:
+        await sqlite_store.insert(doc)
+
+    results = await sqlite_store.full_text_search("episodic_items", "fox")
+    assert len(results) == 1
+    assert results[0]["item_id"] == "ft-1"
+
+    results = await sqlite_store.full_text_search("episodic_items", "dog")
+    assert len(results) == 1
+    assert results[0]["item_id"] == "ft-2"
+
+    results = await sqlite_store.full_text_search("episodic_items", "e")
+    assert len(results) == 3
+
+    results = await sqlite_store.full_text_search("episodic_items", "nonexistent")
+    assert len(results) == 0
+
+
 # ---------------------------------------------------------------------------
 # QdrantVectorStore
 # ---------------------------------------------------------------------------
@@ -155,9 +231,9 @@ def mock_qdrant_client():
 
 @pytest.mark.asyncio
 async def test_qdrant_upsert(mock_qdrant_client):
-    store = QdrantVectorStore(client=mock_qdrant_client)
+    store = QdrantVectorStore(url="http://localhost:6333", client=mock_qdrant_client)
     await store.upsert(
-        collection="fppt_episodic",
+        collection="episodic",
         item_id="point-1",
         vector=[0.1] * 768,
         payload={"user_id": "default"},
@@ -171,9 +247,9 @@ async def test_qdrant_upsert(mock_qdrant_client):
 
 @pytest.mark.asyncio
 async def test_qdrant_search(mock_qdrant_client):
-    store = QdrantVectorStore(client=mock_qdrant_client)
+    store = QdrantVectorStore(url="http://localhost:6333", client=mock_qdrant_client)
     results = await store.search(
-        collection="fppt_episodic",
+        collection="episodic",
         vector=[0.1] * 768,
         top_k=5,
         filter={"user_id": "default"},
@@ -188,8 +264,25 @@ async def test_qdrant_search(mock_qdrant_client):
 
 @pytest.mark.asyncio
 async def test_qdrant_delete(mock_qdrant_client):
-    store = QdrantVectorStore(client=mock_qdrant_client)
-    await store.delete(collection="fppt_episodic", item_id="point-1")
+    store = QdrantVectorStore(url="http://localhost:6333", client=mock_qdrant_client)
+    await store.delete(collection="episodic", item_id="point-1")
     mock_qdrant_client.delete.assert_called_once()
     call_kwargs = mock_qdrant_client.delete.call_args.kwargs
     assert call_kwargs["collection_name"] == "fppt_episodic"
+
+
+@pytest.mark.asyncio
+async def test_qdrant_collection_prefix(mock_qdrant_client):
+    store = QdrantVectorStore(
+        url="http://localhost:6333",
+        collection_prefix="custom",
+        client=mock_qdrant_client,
+    )
+    await store.upsert(
+        collection="episodic",
+        item_id="point-1",
+        vector=[0.1] * 768,
+        payload={"user_id": "default"},
+    )
+    call_kwargs = mock_qdrant_client.upsert.call_args.kwargs
+    assert call_kwargs["collection_name"] == "custom_episodic"

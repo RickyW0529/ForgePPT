@@ -20,8 +20,17 @@ class QdrantVectorStore:
     operations via ``asyncio.to_thread`` so that the public API is fully async.
     """
 
-    def __init__(self, client: QdrantClient):
-        self.client = client
+    def __init__(
+        self,
+        url: str,
+        collection_prefix: str = "fppt",
+        client: QdrantClient | None = None,
+    ):
+        self.collection_prefix = collection_prefix
+        self.client = client if client is not None else QdrantClient(url=url)
+
+    def _collection_name(self, collection: str) -> str:
+        return f"{self.collection_prefix}_{collection}"
 
     async def upsert(
         self,
@@ -33,7 +42,7 @@ class QdrantVectorStore:
         point = PointStruct(id=item_id, vector=vector, payload=payload)
         await asyncio.to_thread(
             self.client.upsert,
-            collection_name=collection,
+            collection_name=self._collection_name(collection),
             points=[point],
         )
 
@@ -47,7 +56,7 @@ class QdrantVectorStore:
         qdrant_filter = self._build_filter(filter) if filter else None
         results = await asyncio.to_thread(
             self.client.query_points,
-            collection_name=collection,
+            collection_name=self._collection_name(collection),
             query=vector,
             query_filter=qdrant_filter,
             limit=top_k,
@@ -59,7 +68,7 @@ class QdrantVectorStore:
     async def delete(self, collection: str, item_id: str) -> None:
         await asyncio.to_thread(
             self.client.delete,
-            collection_name=collection,
+            collection_name=self._collection_name(collection),
             points_selector=[item_id],
         )
 

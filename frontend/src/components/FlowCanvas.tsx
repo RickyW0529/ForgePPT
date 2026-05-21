@@ -82,29 +82,31 @@ export default function FlowCanvas() {
   }, [setSelectedNodeId]);
 
   return (
-    <div className="flex-1 h-full">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        nodeTypes={nodeTypes}
-        fitView
-        fitViewOptions={{ padding: 0.15, duration: 300 }}
-        minZoom={0.3}
-        maxZoom={1.5}
-        nodesConnectable={true}
-        deleteKeyCode={['Backspace', 'Delete']}
-      >
-        <Background gap={20} size={1} className="bg-surface" />
-        <Controls />
-        <MiniMap className="bg-white/90" />
-      </ReactFlow>
+    <div className="flex-1 h-full p-4">
+      <div className="h-full overflow-hidden rounded-[1.5rem] border border-border bg-white shadow-soft">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          onDrop={onDrop}
+          onDragOver={onDragOver}
+          nodeTypes={nodeTypes}
+          fitView
+          fitViewOptions={{ padding: 0.15, duration: 300 }}
+          minZoom={0.3}
+          maxZoom={1.5}
+          nodesConnectable={true}
+          deleteKeyCode={['Backspace', 'Delete']}
+        >
+          <Background gap={24} size={1} className="bg-surface" />
+          <Controls className="!rounded-xl !border !border-border !bg-white !shadow-soft" />
+          <MiniMap className="!rounded-xl !border !border-border !bg-white/95" />
+        </ReactFlow>
+      </div>
     </div>
   );
 }

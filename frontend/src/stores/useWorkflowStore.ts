@@ -81,7 +81,7 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
           if (e.source !== nodeId) return e;
           const idx = outEdges.findIndex((oe) => oe.id === e.id);
           const branchName = branchNames[idx];
-          const pages = branchName ? (data.branches as Record<string, number[]>)[branchName] : [];
+          const pages = branchName ? ((data.branches as Record<string, number[]>)[branchName] ?? []) : [];
           return { ...e, data: { ...e.data, pageScope: pages } };
         });
       }

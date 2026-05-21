@@ -13,7 +13,10 @@ pub async fn create_task_handler(
     match client.create_task(payload).await {
         Ok(resp) => {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
+            let body = match resp.text().await {
+                Ok(b) => b,
+                Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed to read upstream response: {}", e)).into_response(),
+            };
             (status, body).into_response()
         }
         Err(e) => {

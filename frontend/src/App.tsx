@@ -13,16 +13,18 @@ function SSEConnector() {
 
 export default function App() {
   return (
-    <div className="h-screen w-screen flex flex-col">
+    <div className="h-screen w-screen overflow-hidden bg-surface p-4 text-slate-900">
       <SSEConnector />
-      <HeaderBar />
-      <main className="flex-1 flex overflow-hidden">
-        <ReactFlowProvider>
-          <NodePalette />
-          <FlowCanvas />
-        </ReactFlowProvider>
-        <SidebarPanel />
-      </main>
+      <div className="flex h-full flex-col overflow-hidden rounded-[1.5rem] border border-border bg-panel shadow-soft">
+        <HeaderBar />
+        <main className="flex min-h-0 flex-1 overflow-hidden bg-surface/70">
+          <ReactFlowProvider>
+            <NodePalette />
+            <FlowCanvas />
+          </ReactFlowProvider>
+          <SidebarPanel />
+        </main>
+      </div>
       <ToastContainer />
     </div>
   );

@@ -29,7 +29,10 @@ pub async fn upload_handler(
     match client.upload_file(data.to_vec(), filename).await {
         Ok(resp) => {
             let status = resp.status();
-            let body = resp.text().await.unwrap_or_default();
+            let body = match resp.text().await {
+                Ok(b) => b,
+                Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed to read upstream response: {}", e)).into_response(),
+            };
             (status, body).into_response()
         }
         Err(e) => {

@@ -28,7 +28,10 @@ pub async fn create_workflow_handler(
         Ok(resp) => {
             let status = resp.status();
             let headers = resp.headers().clone();
-            let body = resp.bytes().await.unwrap_or_default();
+            let body = match resp.bytes().await {
+                Ok(b) => b,
+                Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed to read upstream response: {}", e)).into_response(),
+            };
             let mut response = Response::new(Body::from(body));
             *response.status_mut() = status;
             *response.headers_mut() = headers;
@@ -51,7 +54,10 @@ pub async fn get_workflow_handler(
         Ok(resp) => {
             let status = resp.status();
             let headers = resp.headers().clone();
-            let body = resp.bytes().await.unwrap_or_default();
+            let body = match resp.bytes().await {
+                Ok(b) => b,
+                Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed to read upstream response: {}", e)).into_response(),
+            };
             let mut response = Response::new(Body::from(body));
             *response.status_mut() = status;
             *response.headers_mut() = headers;

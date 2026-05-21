@@ -14,7 +14,10 @@ pub struct PythonWorkerClient {
 impl PythonWorkerClient {
     pub fn new(config: &GatewayConfig) -> Self {
         Self {
-            client: Client::new(),
+            client: Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .unwrap_or_else(|_| Client::new()),
             sse_client: Client::builder()
                 .timeout(Duration::from_secs(3600))
                 .build()

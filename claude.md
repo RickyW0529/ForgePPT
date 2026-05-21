@@ -131,6 +131,24 @@ Copy `.env.example` to `.env` and fill in secrets. Key variables:
 - `PYTHON_WORKER_URL` — Gateway-to-worker URL
 - `QDRANT_URL` — Qdrant connection URL
 
+## Superpowers (Skills)
+
+This project uses the [Superpowers](https://github.com/obra/superpowers) plugin system for Claude Code. When a skill applies to the task at hand, **you MUST invoke it** using the `Skill` tool before taking any action.
+
+**Iron rule:**
+```
+IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
+```
+
+Relevant skills for this codebase include:
+- **`superpowers:using-superpowers`** — Load at the start of every conversation.
+- **`superpowers:test-driven-development`** — Always use when writing or modifying code.
+- **`superpowers:executing-plans`** — Use when executing a written implementation plan.
+- **`superpowers:subagent-driven-development`** — Use when parallelizing work across subagents.
+- **`superpowers:verification-before-completion`** — Use before claiming any task is complete.
+
+**Skill invocation comes BEFORE any response, exploration, or tool use.**
+
 ## Plans as Source of Truth
 
 Implementation work is driven by plans in `docs/superpowers/plans/`. When executing a plan, follow the steps exactly and verify at each checkpoint. Use `superpowers:executing-plans` or `superpowers:subagent-driven-development` skills for plan execution.

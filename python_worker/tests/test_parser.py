@@ -16,7 +16,7 @@ def test_parse_sample_pptx():
 
     state = parse_pptx(str(fixture_path))
     assert isinstance(state, PPTState)
-    assert state.source_file == "sample.pptx"
+    assert state.source_file == str(fixture_path)
     assert state.slide_count >= 1
     assert len(state.slides) == state.slide_count
     assert state.global_props.width_emu > 0

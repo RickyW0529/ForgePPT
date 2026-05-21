@@ -191,6 +191,9 @@ def editor_node(state: GraphState) -> dict:
     if state.get("error"):
         return {}
 
+    if not state.get("ppt_state"):
+        return {"error": "No PPTState available for editing"}
+
     llm = get_llm_client()
     registry = ToolRegistry()
     available_tools = registry.get_tools_for_role("editor")

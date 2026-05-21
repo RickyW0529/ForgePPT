@@ -10,10 +10,10 @@ const icons = {
 };
 
 const styles = {
-  success: 'bg-green-50 text-green-700 border-green-200',
-  error: 'bg-red-50 text-red-700 border-red-200',
-  info: 'bg-blue-50 text-blue-700 border-blue-200',
-  warning: 'bg-yellow-50 text-yellow-700 border-yellow-200',
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  error: 'border-rose-200 bg-rose-50 text-rose-700',
+  info: 'border-blue-200 bg-blue-50 text-blue-700',
+  warning: 'border-amber-200 bg-amber-50 text-amber-700',
 };
 
 export default function ToastContainer() {
@@ -33,7 +33,7 @@ function ToastItem({
   toast,
   onClose,
 }: {
-  toast: { type: 'success' | 'error' | 'warning' | 'info'; message: string };
+  toast: { id: string; type: 'success' | 'error' | 'warning' | 'info'; message: string };
   onClose: () => void;
 }) {
   const Icon = icons[toast.type];
@@ -45,11 +45,11 @@ function ToastItem({
 
   return (
     <div
-      className={`flex items-start gap-2 px-4 py-3 rounded-lg border shadow-sm min-w-[240px] max-w-[360px] transition-opacity duration-300 ${styles[toast.type]}`}
+      className={`flex min-w-[240px] max-w-[360px] animate-fade-in items-start gap-3 rounded-2xl border px-4 py-3 shadow-soft ${styles[toast.type]}`}
     >
       <Icon size={18} className="mt-0.5 shrink-0" />
-      <p className="text-sm flex-1">{toast.message}</p>
-      <button onClick={onClose} className="shrink-0 hover:opacity-70">
+      <p className="flex-1 text-sm">{toast.message}</p>
+      <button onClick={onClose} className="shrink-0 text-current/60 transition-opacity hover:opacity-70" aria-label="关闭提示">
         <X size={14} />
       </button>
     </div>

@@ -1,6 +1,6 @@
 import asyncio
 import json
-import os
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -44,9 +44,9 @@ async def create_workflow(payload: WorkflowCreateRequest):
     workflow_id = workflow_def.workflow_id
 
     # Path traversal guard
-    upload_dir = "/tmp"
-    real_path = os.path.realpath(payload.file_path)
-    if not real_path.startswith(os.path.realpath(upload_dir) + os.sep):
+    upload_dir = Path("/tmp").resolve()
+    real_path = Path(payload.file_path).resolve()
+    if not real_path.is_relative_to(upload_dir):
         raise HTTPException(status_code=400, detail="Invalid file path")
 
     register_workflow(workflow_id)

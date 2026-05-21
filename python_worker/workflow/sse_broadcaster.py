@@ -7,7 +7,7 @@ _workflow_events: dict[str, asyncio.Queue[dict]] = {}
 
 def register_workflow(workflow_id: str) -> None:
     """Register a new workflow for SSE event collection."""
-    _workflow_events[workflow_id] = asyncio.Queue()
+    _workflow_events[workflow_id] = asyncio.Queue(maxsize=200)
 
 
 def broadcast_sse(node_id: str, status: str, **kwargs: Any) -> None:

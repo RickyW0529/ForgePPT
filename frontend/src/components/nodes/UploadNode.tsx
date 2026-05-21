@@ -4,28 +4,37 @@ import { Upload } from 'lucide-react';
 import type { WorkflowNodeData } from '@/types/workflow';
 
 const statusBorder: Record<string, string> = {
-  idle: 'border-gray-300',
-  pending: 'border-yellow-400',
-  processing: 'border-blue-500',
-  completed: 'border-green-500',
-  error: 'border-red-500',
+  idle: 'border-slate-200',
+  pending: 'border-amber-200',
+  processing: 'border-emerald-300',
+  completed: 'border-deepblue-300',
+  error: 'border-rose-300',
+};
+
+const statusDot: Record<string, string> = {
+  idle: 'bg-slate-300',
+  pending: 'bg-amber-400',
+  processing: 'bg-emerald-400 animate-pulse',
+  completed: 'bg-deepblue-400',
+  error: 'bg-rose-400',
 };
 
 function UploadNode({ data, selected }: NodeProps<Node<WorkflowNodeData>>) {
   return (
     <div
-      className={`bg-white rounded-lg shadow-md border-2 ${statusBorder[data.status]} ${
-        selected ? 'ring-2 ring-deepblue-400' : ''
-      } min-w-[140px]`}
+      className={`min-w-[140px] overflow-hidden rounded-2xl border bg-white shadow-card ${statusBorder[data.status]} ${
+        selected ? 'ring-2 ring-deepblue-300 ring-offset-1' : ''
+      }`}
     >
-      <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-t-lg border-b border-gray-100">
-        <Upload size={14} className="text-gray-600" />
-        <span className="text-xs font-medium text-gray-700">上传</span>
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <Upload size={14} className="text-slate-400" />
+        <span className="text-xs font-medium text-slate-600">上传</span>
+        <span className={`ml-auto h-1.5 w-1.5 rounded-full ${statusDot[data.status]}`} />
       </div>
-      <div className="px-3 py-2 text-xs text-gray-500">
+      <div className="px-3 py-3 text-xs text-muted">
         {data.fileName || '等待文件...'}
       </div>
-      <Handle type="source" position={Position.Right} className="!w-2 !h-2 !bg-deepblue-500" />
+      <Handle type="source" position={Position.Right} className="!h-2 !w-2 !bg-deepblue-600" />
     </div>
   );
 }

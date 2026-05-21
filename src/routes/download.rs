@@ -19,7 +19,10 @@ pub async fn download_handler(
         Ok(resp) => {
             let status = resp.status();
             let headers = resp.headers().clone();
-            let body = resp.bytes().await.unwrap_or_default();
+            let body = match resp.bytes().await {
+                Ok(b) => b,
+                Err(e) => return (StatusCode::BAD_GATEWAY, format!("Failed to read upstream response: {}", e)).into_response(),
+            };
             let mut response = (status, body).into_response();
             *response.headers_mut() = headers;
             response

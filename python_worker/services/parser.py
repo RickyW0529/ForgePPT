@@ -168,7 +168,7 @@ def parse_pptx(file_path: str | Path, page_nums: list[int] | None = None) -> PPT
         )
 
     return PPTState(
-        source_file=file_path.name,
+        source_file=str(file_path),
         slide_count=len(slides),
         global_props=SlideSize(
             width_emu=prs.slide_width,

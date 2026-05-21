@@ -23,7 +23,7 @@ def test_recompose_no_changes():
         assert output_path.exists()
         # Should be parseable again
         state2 = parse_pptx(str(output_path))
-        assert state2.source_file == "output_no_changes.pptx"
+        assert state2.source_file == str(output_path)
         assert state2.slide_count == state.slide_count
     finally:
         output_path.unlink(missing_ok=True)

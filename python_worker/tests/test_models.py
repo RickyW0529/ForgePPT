@@ -79,7 +79,7 @@ def test_element_discriminator():
 
 
 def test_large_slide_count_allowed():
-    """PPTState should allow up to 50 slides."""
+    """PPTState should allow up to 300 slides."""
     size = SlideSize(width_emu=9144000, height_emu=5143500, width_px=960.0, height_px=540.0)
     slides = [
         Slide(page_num=i, size=size)
@@ -97,16 +97,13 @@ def test_large_slide_count_allowed():
 
 
 def test_slide_count_exceeds_max():
-    """PPTState should reject more than 50 slides."""
+    """PPTState should reject more than 300 slides."""
     size = SlideSize(width_emu=9144000, height_emu=5143500, width_px=960.0, height_px=540.0)
     with pytest.raises(ValidationError) as exc_info:
         PPTState(
             source_file="test.pptx",
-            slide_count=51,
+            slide_count=301,
             global_props=size,
-            slides=[
-                Slide(page_num=i, size=size)
-                for i in range(1, 52)
-            ],
+            slides=[],
         )
-    assert "slide_count" in str(exc_info.value) or "slides" in str(exc_info.value) or "page_num" in str(exc_info.value)
+    assert "slide_count" in str(exc_info.value)

@@ -71,7 +71,9 @@ export default function HeaderBar() {
       }
 
       const json = await resp.json();
-      setWorkflowId(json.workflow_id || json.data?.workflow_id);
+      const wfId = json.workflow_id || json.data?.workflow_id;
+      if (!wfId) throw new Error('服务器未返回 workflow_id');
+      setWorkflowId(wfId);
       addToast({ type: 'success', message: '工作流已提交' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : '提交失败';
@@ -97,26 +99,31 @@ export default function HeaderBar() {
   };
 
   const statusColor: Record<string, string> = {
-    idle: 'bg-gray-200 text-gray-700',
-    processing: 'bg-blue-200 text-blue-800',
-    completed: 'bg-green-100 text-green-700',
-    error: 'bg-red-100 text-red-700',
+    idle: 'bg-slate-100 text-slate-600 border-slate-200',
+    processing: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    completed: 'bg-deepblue-50 text-deepblue-700 border-deepblue-200',
+    error: 'bg-rose-50 text-rose-700 border-rose-200',
   };
 
   return (
-    <header className="h-12 bg-deepblue-800 text-white flex items-center justify-between px-4 shrink-0">
-      <div className="flex items-center gap-2">
-        <span className="font-semibold text-lg">PPT Agent</span>
-        <span className="w-2 h-2 rounded-full bg-green-400" />
+    <header className="flex h-14 items-center justify-between border-b border-border bg-white/90 px-5 shadow-[0_1px_0_rgba(255,255,255,0.7)] backdrop-blur-sm">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-deepblue-700 text-sm font-semibold text-white shadow-soft">
+          P
+        </div>
+        <div>
+          <div className="text-sm font-semibold text-slate-900">PPT Agent</div>
+          <div className="text-xs text-muted">Workflow canvas for PPT editing</div>
+        </div>
       </div>
       <div className="flex items-center gap-3">
-        <div aria-live="polite" className={`px-3 py-1 rounded-full text-xs font-medium ${statusColor[overallStatus]}`}>
+        <div aria-live="polite" className={`rounded-full border px-3 py-1 text-xs font-medium ${statusColor[overallStatus]}`}>
           {statusLabel[overallStatus]}
         </div>
         <button
           onClick={handleExecute}
           disabled={isExecuting}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-500 disabled:cursor-not-allowed rounded text-xs font-medium transition-colors"
+          className="flex items-center gap-1.5 rounded-full bg-deepblue-700 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-deepblue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
           {isExecuting ? (
             <>

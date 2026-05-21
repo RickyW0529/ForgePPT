@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -9,8 +10,16 @@ from typing import Any
 import aiosqlite
 
 
+_IDENTIFIER_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
+
+
 class SQLiteDocumentStore:
     """Async SQLite document store for episodic memory items."""
+
+    @staticmethod
+    def _validate_identifier(name: str, context: str) -> None:
+        if not _IDENTIFIER_RE.match(name):
+            raise ValueError(f"Invalid {context} identifier: {name}")
 
     @staticmethod
     def _schema(table: str) -> str:
@@ -44,6 +53,7 @@ class SQLiteDocumentStore:
         self._tables_created: set[str] = set()
 
     async def _ensure_table(self, table: str) -> None:
+        self._validate_identifier(table, "table")
         if table in self._tables_created:
             return
         async with aiosqlite.connect(self.db_path) as db:
@@ -77,6 +87,7 @@ class SQLiteDocumentStore:
         return result
 
     async def insert(self, doc: dict, table: str = "episodic_items") -> str:
+        """Insert a new document. Raises ValueError if item_id already exists."""
         await self._ensure_table(table)
         item_id = doc.get("item_id")
         if not item_id:
@@ -105,11 +116,14 @@ class SQLiteDocumentStore:
 
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            await db.execute(
-                f"INSERT OR REPLACE INTO {table} ({', '.join(columns)}) VALUES ({placeholders})",
-                values,
-            )
-            await db.commit()
+            try:
+                await db.execute(
+                    f"INSERT INTO {table} ({', '.join(columns)}) VALUES ({placeholders})",
+                    values,
+                )
+                await db.commit()
+            except sqlite3.IntegrityError as exc:
+                raise ValueError(f"item_id '{item_id}' already exists in table '{table}'") from exc
         return str(item_id)
 
     async def get(self, item_id: str, table: str = "episodic_items") -> dict | None:
@@ -137,6 +151,7 @@ class SQLiteDocumentStore:
         params: list[Any] = []
 
         for key, value in where.items():
+            self._validate_identifier(key, "where key")
             clauses.append(f"{key} = ?")
             params.append(self._serialize(value))
 
@@ -155,8 +170,7 @@ class SQLiteDocumentStore:
             else:
                 col = ob
                 direction = "ASC"
-            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", col):
-                raise ValueError(f"Invalid order_by column: {col}")
+            self._validate_identifier(col, "order_by column")
             sql += f" ORDER BY {col} {direction}"
         if limit is not None:
             sql += " LIMIT ?"

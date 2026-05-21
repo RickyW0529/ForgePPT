@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import aiosqlite
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -284,3 +285,91 @@ async def test_qdrant_collection_prefix(mock_qdrant_client):
     )
     call_kwargs = mock_qdrant_client.upsert.call_args.kwargs
     assert call_kwargs["collection_name"] == "custom_episodic"
+
+
+# ---------------------------------------------------------------------------
+# Security & edge-case tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sqlite_insert_duplicate_raises(sqlite_store):
+    doc = {
+        "item_id": "dup-1",
+        "user_id": "default",
+        "type": "episodic",
+        "content": "first",
+        "source": "test",
+        "created_at": datetime.now(timezone.utc),
+        "accessed_at": datetime.now(timezone.utc),
+    }
+    await sqlite_store.insert(doc)
+    with pytest.raises(ValueError, match="already exists"):
+        await sqlite_store.insert(doc)
+
+
+@pytest.mark.asyncio
+async def test_sqlite_order_by_validation(sqlite_store):
+    doc = {
+        "item_id": "ob-1",
+        "user_id": "default",
+        "type": "episodic",
+        "content": "x",
+        "source": "test",
+        "created_at": datetime.now(timezone.utc),
+        "accessed_at": datetime.now(timezone.utc),
+    }
+    await sqlite_store.insert(doc)
+    with pytest.raises(ValueError, match="Invalid order_by"):
+        await sqlite_store.query(order_by="item_id; DROP TABLE episodic_items --")
+
+
+@pytest.mark.asyncio
+async def test_sqlite_where_key_validation(sqlite_store):
+    doc = {
+        "item_id": "wk-1",
+        "user_id": "default",
+        "type": "episodic",
+        "content": "x",
+        "source": "test",
+        "created_at": datetime.now(timezone.utc),
+        "accessed_at": datetime.now(timezone.utc),
+    }
+    await sqlite_store.insert(doc)
+    with pytest.raises(ValueError, match="Invalid where key"):
+        await sqlite_store.query(where={"item_id IS NOT NULL AND user_id": "admin"})
+
+
+@pytest.mark.asyncio
+async def test_sqlite_table_name_validation(sqlite_store):
+    with pytest.raises(ValueError, match="Invalid table"):
+        await sqlite_store.count(table="episodic_items; DROP TABLE episodic_items --")
+
+
+@pytest.mark.asyncio
+async def test_sqlite_deserialize_json_error(sqlite_store):
+    # Manually insert corrupted JSON to trigger deserialization failure
+    await sqlite_store._ensure_table("episodic_items")
+    async with aiosqlite.connect(sqlite_store.db_path) as db:
+        await db.execute(
+            "INSERT INTO episodic_items (item_id, user_id, type, content, payload, source, created_at, accessed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("bad-json", "default", "episodic", "x", "not-json", "test", "2024-01-01T00:00:00", "2024-01-01T00:00:00"),
+        )
+        await db.commit()
+    with pytest.raises(ValueError, match="Failed to deserialize JSON field 'payload'"):
+        await sqlite_store.get("bad-json")
+
+
+@pytest.mark.asyncio
+async def test_sqlite_deserialize_datetime_error(sqlite_store):
+    await sqlite_store._ensure_table("episodic_items")
+    async with aiosqlite.connect(sqlite_store.db_path) as db:
+        await db.execute(
+            "INSERT INTO episodic_items (item_id, user_id, type, content, source, created_at, accessed_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("bad-dt", "default", "episodic", "x", "test", "not-a-datetime", "not-a-datetime"),
+        )
+        await db.commit()
+    with pytest.raises(ValueError, match="Failed to deserialize datetime field 'created_at'"):
+        await sqlite_store.get("bad-dt")

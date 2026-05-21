@@ -239,7 +239,7 @@ class TestMaxReplanExhausted:
 class TestRunnerEntryPoint:
     @pytest.mark.asyncio
     async def test_run_merge_subgraph_returns_tuple(self):
-        """run_merge_subgraph patches get_router and returns (PPTState, AgentTrace)."""
+        """Patches get_router before invoking run_merge_subgraph; returns (PPTState, AgentTrace)."""
         base = _minimal_ppt(2)
         branch1 = _modify_slide(base, 2)
         config = MergeNodeConfig(prompt="Merge it")

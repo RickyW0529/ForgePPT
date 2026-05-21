@@ -18,7 +18,7 @@ def diff_pages_node(state: MergeGraphState) -> dict[str, Any]:
     base = inputs[0]
     branch_diffs: list[list[int]] = []
     for i in range(1, len(inputs)):
-        modified = list(detect_modified_pages(base, inputs[i]))
+        modified = detect_modified_pages(base, inputs[i])
         # Report extra slides beyond base length so planner can select them
         for extra_page in range(len(base.slides) + 1, len(inputs[i].slides) + 1):
             modified.append(extra_page)

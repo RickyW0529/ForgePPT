@@ -1,4 +1,9 @@
-"""Merge solver node — executes a MergePlan to build a merged PPTState."""
+"""Merge solver node — executes a MergePlan to build a merged PPTState.
+
+MVP Boundary: The solver only supports in-place slide replacement.
+It cannot add, remove, or reorder slides to new positions beyond the
+base deck length. The validator enforces ``target_page <= len(base.slides)``.
+"""
 
 from __future__ import annotations
 

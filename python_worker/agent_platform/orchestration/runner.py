@@ -86,6 +86,9 @@ async def run_merge_subgraph(
 
     Returns the merged ``PPTState`` and an ``AgentTrace`` for observability.
     """
+    if not inputs:
+        raise ValueError("merge subgraph requires at least one input PPTState")
+
     # 1. Router
     router = get_router()
 

@@ -111,8 +111,8 @@ def make_merge_validator_node():
             }
 
         ok, failures = validate_merge_plan(plan, state["inputs"])
-        for f in failures:
-            object.__setattr__(f, "iteration", state.get("plan_iteration", 0))
+        iteration = state.get("plan_iteration", 0)
+        failures = [f.model_copy(update={"iteration": iteration}) for f in failures]
 
         return {
             "last_validation_ok": ok,

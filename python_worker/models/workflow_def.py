@@ -30,11 +30,15 @@ class AgentNodeConfig(BaseModel):
     temperature: float = Field(0.3, ge=0.0, le=1.0)
     model: str | None = None
     page_scope: list[int] = Field(default_factory=list, alias="pageScope")
+    max_replan: int = Field(2, ge=0)
 
 
 class MergeNodeConfig(BaseModel):
     merge_strategy: Literal["ai_composer"] = "ai_composer"
     prompt: str = ""
+    temperature: float = Field(0.3, ge=0.0, le=1.0)
+    model: str | None = None
+    max_replan: int = Field(2, ge=0)
 
 
 class WorkflowDef(BaseModel):

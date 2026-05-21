@@ -18,7 +18,8 @@ def repair_node(state: AgentGraphState) -> dict[str, Any]:
     Otherwise we build an abort trace and short-circuit to ``assemble``.
     """
     iteration = state.get("plan_iteration", 0)
-    if iteration >= MAX_REPLAN:
+    max_replan = getattr(state.get("config"), "max_replan", MAX_REPLAN)
+    if iteration >= max_replan:
         node_id = getattr(state["config"], "role", "merge")
         return {
             "trace": AgentTrace(
